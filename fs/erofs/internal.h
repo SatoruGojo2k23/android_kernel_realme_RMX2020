@@ -2,6 +2,7 @@
 /*
  * Copyright (C) 2017-2018 HUAWEI, Inc.
  *             https://www.huawei.com/
+ * Created by Gao Xiang <gaoxiang25@huawei.com>
  */
 #ifndef __EROFS_INTERNAL_H
 #define __EROFS_INTERNAL_H
@@ -60,7 +61,10 @@ struct erofs_sb_info {
 	struct mutex umount_mutex;
 
 	/* the dedicated workstation for compression */
-	struct radix_tree_root workstn_tree;
+	struct {
+		struct radix_tree_root tree;
+		spinlock_t lock;
+	} workstn;
 
 	/* threshold for decompression synchronously */
 	unsigned int max_sync_decompress_pages;
@@ -70,6 +74,8 @@ struct erofs_sb_info {
 
 	/* current strategy of how to use managed cache */
 	unsigned char cache_strategy;
+	/* strategy of sync decompression (false - auto, true - force on) */
+	bool readahead_sync_decompress;
 
 	/* pseudo inode to manage cached pages */
 	struct inode *managed_cache;
@@ -121,6 +127,9 @@ enum {
 };
 
 #define EROFS_LOCKED_MAGIC     (INT_MIN | 0xE0F510CCL)
+
+#define erofs_workstn_lock(sbi)         spin_lock(&(sbi)->workstn.lock)
+#define erofs_workstn_unlock(sbi)       spin_unlock(&(sbi)->workstn.lock)
 
 /* basic unit of the workstation of a super_block */
 struct erofs_workgroup {
@@ -433,7 +442,8 @@ int __init z_erofs_init_zip_subsystem(void);
 void z_erofs_exit_zip_subsystem(void);
 int erofs_try_to_free_all_cached_pages(struct erofs_sb_info *sbi,
 				       struct erofs_workgroup *egrp);
-int erofs_try_to_free_cached_page(struct page *page);
+int erofs_try_to_free_cached_page(struct address_space *mapping,
+				  struct page *page);
 int z_erofs_load_lz4_config(struct super_block *sb,
 			    struct erofs_super_block *dsb,
 			    struct z_erofs_lz4_cfgs *lz4, int len);
@@ -458,8 +468,5 @@ static inline int z_erofs_load_lz4_config(struct super_block *sb,
 
 #define EFSCORRUPTED    EUCLEAN         /* Filesystem is corrupted */
 
-#ifndef lru_to_page
-#define lru_to_page(head) (list_entry((head)->prev, struct page, lru))
-#endif
-
 #endif	/* __EROFS_INTERNAL_H */
+
