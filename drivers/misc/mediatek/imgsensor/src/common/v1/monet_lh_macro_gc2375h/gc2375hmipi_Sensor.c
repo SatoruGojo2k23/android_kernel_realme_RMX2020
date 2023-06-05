@@ -29,6 +29,7 @@
 #include "kd_imgsensor_errcode.h"
 
 #include "gc2375hmipi_Sensor.h"
+#include <soc/oppo/oppo_project.h>
 /* Zhen.Quan@Camera.Driver, 2019/10/17, add for [otp bringup] */
 #include "imgsensor_read_eeprom.h"
 #define ENABLE_GC2375H_LH_OTP 1
@@ -215,7 +216,7 @@ static void set_dummy(void)
 
 static kal_uint32 return_sensor_id(void)
 {
-	return ((read_cmos_sensor(0xf0) << 8) | read_cmos_sensor(0xf1)) + 1;/*Duilin.Qin@ODM_WT.Camera.Driver, 2019/10/30, modify by fae*/
+	return ((read_cmos_sensor(0xf0) << 8) | read_cmos_sensor(0xf1)) + 2;/*Duilin.Qin@ODM_WT.Camera.Driver, 2019/10/30, modify by fae*/
 }
 
 static void set_max_framerate(UINT16 framerate, kal_bool min_framelength_en)
@@ -672,6 +673,40 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 	return ERROR_NONE;
 }
 
+static kal_uint64 read_head_id(void)
+{
+	kal_uint64 head_id = 0;
+	kal_uint16 module_byte = 0;
+	kal_uint16 sensor_byte = 0;
+	char pusendcmd_module[2] = {(char)(0x01 >> 8), (char)(0x01 & 0xFF)};
+	char pusendcmd_sensor[2] = {(char)(0x05 >> 8), (char)(0x05 & 0xFF)};
+
+	iReadRegI2C(pusendcmd_module, 2, (u8 *)&module_byte, 1, 0xA4/*EEPROM_READ_ID*/);
+	iReadRegI2C(pusendcmd_sensor, 2, (u8 *)&sensor_byte, 1, 0xA4/*EEPROM_READ_ID*/);
+
+	head_id = (kal_uint64)((sensor_byte << 24) | module_byte);
+	printk("the head id is %lx\n", head_id);
+
+	return head_id;
+}
+
+static kal_uint32 monet_project(void) //monet:1, monetZ:2
+{
+	kal_uint32 version_value;
+
+	version_value = get_Operator_Version();
+	if (version_value == 111 || version_value == 112
+		|| version_value == 113 || version_value == 115
+		|| version_value == 116) {
+		return 1;
+	} else if (version_value == 101 || version_value == 114) {
+		return 2;
+	}
+
+	return 0;
+}
+
+
 /*************************************************************************
  * FUNCTION
  *    get_imgsensor_id
@@ -692,11 +727,8 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 {
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
-	/*Quanzhen@ODM_WT.Camera.Driver, 2019/11/4,camera distinction snesor */
-	if (!check_board_id(board_monet)){
-		*sensor_id = 0xFFFFFFFF;
-		return ERROR_SENSOR_CONNECT_FAIL;
-	}
+	kal_uint64 head_id = 0;
+
 	while (imgsensor_info.i2c_addr_table[i] != 0xff) {
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
@@ -704,18 +736,22 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		do {
 			*sensor_id = return_sensor_id();
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				/* Zhen.Quan@Camera.Driver, 2019/10/17, add for [otp bringup] */
-#if ENABLE_GC2375H_LH_OTP
+				head_id = read_head_id();
 				if(!check_otp_data(&monet_lh_macro_gc2375h_eeprom_data, monet_lh_macro_gc2375h_checksum, sensor_id)){
 					break;
 				} else {
 					/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-					hardwareinfo_set_prop(HARDWARE_MONO_CAM_MOUDULE_ID, "Lh");
+					//hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "Truly");
 				}
-#endif
-				cam_pr_debug("i2c write id: 0x%x, sensor id: 0x%x\n",
+				if ((head_id == 0x7700001A) && monet_project() == 1) {
+					cam_pr_debug("i2c write id: 0x%x, sensor id: 0x%x\n",
 					imgsensor.i2c_write_id, *sensor_id);
-				return ERROR_NONE;
+					return ERROR_NONE;
+				} else {
+					*sensor_id = 0xFFFFFFFF;
+					cam_pr_debug("match fail");
+					return ERROR_SENSOR_CONNECT_FAIL;
+				}
 			}
 			cam_pr_debug("Read sensor id fail, write id: 0x%x, id: 0x%x\n",
 				imgsensor.i2c_write_id, *sensor_id);

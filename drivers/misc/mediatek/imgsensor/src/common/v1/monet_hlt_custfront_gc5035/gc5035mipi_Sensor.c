@@ -27,6 +27,7 @@
 #include "kd_imgsensor_errcode.h"
 
 #include "gc5035mipi_Sensor.h"
+#include <soc/oppo/oppo_project.h>
 /*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
 #include <linux/hardware_info.h>
 /* Zhen.Quan@Camera.Driver, 2019/10/17, add for [otp bringup] */
@@ -1732,10 +1733,55 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 	return ERROR_NONE;
 }
 
+static kal_uint64 read_head_id(void)
+{
+	kal_uint64 head_id = 0;
+	kal_uint16 module_byte_l = 0;
+	kal_uint16 module_byte_h = 0;
+	kal_uint16 sensor_byte_l = 0;
+	kal_uint16 sensor_byte_h = 0;
+	kal_uint16 module_byte = 0;
+	kal_uint16 sensor_byte = 0;
+
+	char pusendcmd_module_l[2] = {(char)(0x00 >> 8), (char)(0x00 & 0xFF)};
+	char pusendcmd_sensor_l[2] = {(char)(0x06 >> 8), (char)(0x06 & 0xFF)};
+	char pusendcmd_module_h[2] = {(char)(0x01 >> 8), (char)(0x01 & 0xFF)};
+	char pusendcmd_sensor_h[2] = {(char)(0x07 >> 8), (char)(0x07 & 0xFF)};
+
+	iReadRegI2C(pusendcmd_module_l, 2, (u8 *)&module_byte_l, 1, 0xA8/*EEPROM_READ_ID*/);
+	iReadRegI2C(pusendcmd_sensor_l, 2, (u8 *)&sensor_byte_l, 1, 0xA8/*EEPROM_READ_ID*/);
+	iReadRegI2C(pusendcmd_module_h, 2, (u8 *)&module_byte_h, 1, 0xA8/*EEPROM_READ_ID*/);
+	iReadRegI2C(pusendcmd_sensor_h, 2, (u8 *)&sensor_byte_h, 1,0xA8/*EEPROM_READ_ID*/);
+
+	sensor_byte = ((sensor_byte_h << 8) | (sensor_byte_l));
+	module_byte = ((module_byte_h << 8) | (module_byte_l));
+	head_id = (kal_uint64)((sensor_byte << 24) | module_byte);
+	printk("the head id is %lu\n", head_id);
+
+	return head_id;
+}
+
+static kal_uint32 monet_project(void) //monet:1, monetZ:2
+{
+	kal_uint32 version_value;
+
+	version_value = get_Operator_Version();
+	if (version_value == 111 || version_value == 112
+		|| version_value == 113 || version_value == 115
+		|| version_value == 116) {
+		return 1;
+	} else if (version_value == 101 || version_value == 114) {
+		return 2;
+	}
+
+	return 0;
+}
+
 static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 {
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
+	kal_uint64 head_id = 0;
 
 	cam_pr_debug("E\n");
 
@@ -1746,19 +1792,24 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		do {
 			*sensor_id = return_sensor_id();
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				/* Zhen.Quan@Camera.Driver, 2019/10/17, add for [otp bringup] */
-#if ENABLE_CUST_GC5035_OTP
 				if(!check_otp_data(&monet_hlt_custfront_gc5035_eeprom_data, monet_hlt_custfront_gc5035_checksum, sensor_id)){
 					break;
 				} else {
 					/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-					hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "Hlt");
+					//hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "Truly");
 				}
-#endif
-				gc5035_otp_identify();
-				cam_pr_debug("i2c write id: 0x%x, sensor id: 0x%x\n",
+				head_id = read_head_id();
+				if (((head_id == 0x74000009) && (monet_project() == 1)) || (monet_project() == 2)) {
+//					hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM_MOUDULE_ID, "");
+					gc5035_otp_identify();
+					cam_pr_debug("i2c write id: 0x%x, sensor id: 0x%x\n",
 					imgsensor.i2c_write_id, *sensor_id);
-				return ERROR_NONE;
+					return ERROR_NONE;
+				} else {
+					*sensor_id = 0xFFFFFFFF;
+					cam_pr_debug("match fail");
+					return ERROR_SENSOR_CONNECT_FAIL;
+				}
 			}
 			cam_pr_debug("Read sensor id fail, write id: 0x%x, id: 0x%x\n",
 				imgsensor.i2c_write_id, *sensor_id);

@@ -260,7 +260,7 @@ static void set_dummy(void)
 
 static kal_uint32 return_sensor_id(void)
 {
-	return ((read_cmos_sensor(0x0F16) << 8) | read_cmos_sensor(0x0F17));
+	return ((read_cmos_sensor(0x0F16) << 8) | read_cmos_sensor(0x0F17)) + 1;
 }
 
 

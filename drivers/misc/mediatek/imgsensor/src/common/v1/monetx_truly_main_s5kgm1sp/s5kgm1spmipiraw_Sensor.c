@@ -86,7 +86,7 @@ static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
 
 static imgsensor_info_struct imgsensor_info = {
-	.sensor_id = S5KGM1SP_SENSOR_ID,
+	.sensor_id = MONETX_TRULY_MAIN_S5KGM1SP_SENSOR_ID,
 
 	.checksum_value = 0xB1F1B3CC,
 
@@ -5974,12 +5974,12 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 			pr_err("read_0x0000=0x%x, 0x0001=0x%x,0x0000_0001=0x%x\n",read_cmos_sensor_8(0x0000),read_cmos_sensor_8(0x0001),read_cmos_sensor(0x0000));
 			if (*sensor_id == imgsensor_info.sensor_id) {
 				/* Zhen.Quan@Camera.Driver, 2019/10/17, add for [otp bringup] */
-#if ENABLE_S5KGM_OTP
+#if 1
 				if(!check_otp_data(&monetx_truly_main_s5kgm1sp_eeprom_data, monetx_truly_main_s5kgm1sp_hecksum, sensor_id)){
 					break;
 				} else {
 					/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-					hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "Truly");
+					//hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "Truly");
 				}
 #endif
 				#if 0 //ifdef S5KGM1SP_VENDOR_EDIT
@@ -6677,8 +6677,8 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	//SET_SENSOR_AWB_GAIN *pSetSensorAWB=(SET_SENSOR_AWB_GAIN *)feature_para;
 	MSDK_SENSOR_REG_INFO_STRUCT *sensor_reg_data=(MSDK_SENSOR_REG_INFO_STRUCT *) feature_para;
         /*Yang.Guo@Camera.Driver , 20200224, add for ITS--sensor_fusion start*/
-	MINT32 offset1 = 0;
-	MUINT32 offset2 = 0;
+//	MINT32 offset1 = 0;
+//	MUINT32 offset2 = 0;
         /*Yang.Guo@Camera.Driver , 20200224, add for ITS--sensor_fusion end*/
 
 	/*LOG_INF("feature_id = %d\n", feature_id);*/
@@ -6720,13 +6720,13 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		}
 		#endif
 		/*Yang.Guo@Camera.Driver , 20200224, add for ITS--sensor_fusion start*/
-		case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
+		/*case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
 			LOG_INF("Real SENOSR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE\n");
 			offset1 = -5500000;
 			offset2 = (MUINT32)offset1;
 			LOG_INF("Real offset1=%d, offset1=0x%x, offset2=0x%x\n", offset1, offset1, offset2);
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = offset2;
-			break;
+			break;*/
 		/*Yang.Guo@Camera.Driver , 20200224, add for ITS--sensor_fusion end*/
 		case SENSOR_FEATURE_GET_PERIOD_BY_SCENARIO:
 			switch (*feature_data) {
@@ -6997,7 +6997,7 @@ static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 	close
 };
 
-UINT32 S5KGM1SP_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)
+UINT32 MONETX_TRULY_MAIN_S5KGM1SP_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)
 //UINT32 IMX214_MIPI_SensorInit(PSENSOR_FUNCTION_STRUCT *pfFunc)
 {
 	/* To Do : Check Sensor status here */

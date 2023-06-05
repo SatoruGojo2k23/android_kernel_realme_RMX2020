@@ -38,24 +38,23 @@ struct REGULATOR_CTRL regulator_control[REGULATOR_TYPE_MAX_NUM] = {
 	{"vcama"},
 	{"vcamd"},
 	{"vcamio"},
-#ifdef ODM_WT_EDIT
-/*xiaojun.Pu@Camera.Driver, 2019/10/18, add AF driver*/
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 	{"vcamaf"},
-#endif /* ODM_WT_EDIT */
+#endif
 };
 
 static const int int_oc_type[REGULATOR_TYPE_MAX_NUM] = {
 	INT_VCAMA1_OC,
 	INT_VCAMD_OC,
 	INT_VCAMIO_OC,
-#ifdef ODM_WT_EDIT
-/*xiaojun.Pu@Camera.Driver, 2019/10/18, add AF driver*/
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 	INT_VLDO28_OC,
-#endif /* ODM_WT_EDIT */
+#endif
 };
 
 
 static struct REGULATOR reg_instance;
+
 
 static void imgsensor_oc_handler1(void)
 {
@@ -107,16 +106,22 @@ enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
 	struct device *pdevice = gimgsensor_device;
 	char str_regulator_name[LENGTH_FOR_SNPRINTF];
 	int i = 0;
+	int ret = 0;
 	gimgsensor.status.oc = 0;
 
 	if (enable) {
 		mdelay(5);
 		for (i = 0; i < REGULATOR_TYPE_MAX_NUM; i++) {
-			snprintf(str_regulator_name,
+			ret = snprintf(str_regulator_name,
 					sizeof(str_regulator_name),
 					"cam%d_%s",
 					sensor_idx,
 					regulator_control[i].pregulator_type);
+			if (ret < 0) {
+				pr_info(
+				"[regulator]%s error, ret = %d", __func__, ret);
+				return IMGSENSOR_RETURN_ERROR;
+			}
 			preg = regulator_get(pdevice, str_regulator_name);
 			if (preg && regulator_is_enabled(preg)) {
 				pmic_enable_interrupt(
@@ -138,11 +143,16 @@ enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
 		/* Disable interrupt before power off */
 
 		for (i = 0; i < REGULATOR_TYPE_MAX_NUM; i++) {
-			snprintf(str_regulator_name,
+			ret = snprintf(str_regulator_name,
 					sizeof(str_regulator_name),
 					"cam%d_%s",
 					sensor_idx,
 					regulator_control[i].pregulator_type);
+			if (ret < 0) {
+				pr_info(
+				"[regulator]%s error, ret = %d", __func__, ret);
+				return IMGSENSOR_RETURN_ERROR;
+			}
 			preg = regulator_get(pdevice, str_regulator_name);
 			if (preg) {
 				pmic_enable_interrupt(
@@ -253,26 +263,24 @@ static enum IMGSENSOR_RETURN regulator_set(
 	int reg_type_offset;
 	atomic_t	*enable_cnt;
 
-#ifdef ODM_WT_EDIT
-/*xiaojun.Pu@Camera.Driver, 2019/10/18, add AF driver*/
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 	if (pin > IMGSENSOR_HW_PIN_AFVDD   ||
 #else
 	if (pin > IMGSENSOR_HW_PIN_DOVDD   ||
-#endif /* ODM_WT_EDIT */
-		pin < IMGSENSOR_HW_PIN_AVDD    ||
-		pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
-		pin_state >= IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH)
+#endif
+	    pin < IMGSENSOR_HW_PIN_AVDD    ||
+	    pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
+	    pin_state >= IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH ||
+	    sensor_idx < 0)
 		return IMGSENSOR_RETURN_ERROR;
 
 	reg_type_offset = REGULATOR_TYPE_VCAMA;
 
-	pregulator =
-		preg->pregulator[sensor_idx][
-			reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
+	pregulator = preg->pregulator[(unsigned int)sensor_idx][
+		reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
 
-	enable_cnt =
-		&preg->enable_cnt[sensor_idx][
-			reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
+	enable_cnt = &preg->enable_cnt[(unsigned int)sensor_idx][
+		reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
 
 	if (pregulator) {
 		if (pin_state != IMGSENSOR_HW_PIN_STATE_LEVEL_0) {

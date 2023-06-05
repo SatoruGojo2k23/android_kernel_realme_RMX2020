@@ -21,10 +21,7 @@
 #include <linux/workqueue.h>
 #include <linux/init.h>
 #include <linux/types.h>
-#ifdef ODM_WT_EDIT
-/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-#include <linux/hardware_info.h>
-#endif /* ODM_WT_EDIT */
+
 #undef CONFIG_MTK_SMI_EXT
 #ifdef CONFIG_MTK_SMI_EXT
 #include "mmdvfs_mgr.h"
@@ -57,7 +54,7 @@
 #include "imgsensor_proc.h"
 #include "imgsensor_clk.h"
 #include "imgsensor.h"
-#include "imgsensor_read_eeprom.h"
+
 #define PDAF_DATA_SIZE 4096
 
 #ifdef CONFIG_MTK_SMI_EXT
@@ -70,6 +67,11 @@ static int current_mmsys_clk = MMSYS_CLK_MEDIUM;
 #ifdef CONFIG_CAM_TEMPERATURE_WORKQUEUE
 static void cam_temperature_report_wq_routine(struct work_struct *);
 	struct delayed_work cam_temperature_wq;
+#endif
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+/*Liu.Yong@BSP.CHG.Basic, 20201112, add for charge status change*/
+extern void oplus_chg_set_camera_status(bool val);
 #endif
 
 #define FEATURE_CONTROL_MAX_DATA_SIZE 128000
@@ -90,10 +92,7 @@ struct mutex imgsensor_mutex;
 
 
 DEFINE_MUTEX(pinctrl_mutex);
-#ifdef ODM_WT_EDIT
-/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-extern int hardwareinfo_set_prop(int cmd, const char *name);
-#endif /* ODM_WT_EDIT */
+
 /************************************************************************
  * Profiling
  ************************************************************************/
@@ -504,13 +503,31 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 
 	static int orderedSearchList[MAX_NUM_OF_SUPPORT_SENSOR] = {-1};
 	static bool get_search_list = true;
-	int i = 0;
-	int j = 0;
+	unsigned int i = 0;
+	unsigned int j = 0;
 	char *driver_name = NULL;
 
 	imgsensor_mutex_init(psensor_inst);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (pascal_project() == 4) {
+		imgsensor_i2c_init(&psensor_inst->i2c_cfg,
+			imgsensor_custom_config[(unsigned int)psensor->inst.sensor_idx].i2c_dev);
+	} else if ((pascal_project() == 5) || (pascal_project() == 6) || (pascal_project() == 7)) {
+		imgsensor_i2c_init(&psensor_inst->i2c_cfg,
+			imgsensor_custom_config_monetx[(unsigned int)psensor->inst.sensor_idx].i2c_dev);
+	} else if (pascal_project() == 8) {
+			imgsensor_i2c_init(&psensor_inst->i2c_cfg,
+			imgsensor_custom_config_pascalC[psensor->inst.sensor_idx].i2c_dev);
+	} else {
+		imgsensor_i2c_init(&psensor_inst->i2c_cfg,
+			imgsensor_custom_config[(unsigned int)psensor->inst.sensor_idx].i2c_dev);
+	}
+#else
 	imgsensor_i2c_init(&psensor_inst->i2c_cfg,
-	   imgsensor_custom_config[psensor->inst.sensor_idx].i2c_dev);
+	imgsensor_custom_config[
+	(unsigned int)psensor->inst.sensor_idx].i2c_dev);
+
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
 
 	imgsensor_i2c_filter_msg(&psensor_inst->i2c_cfg, true);
 
@@ -802,37 +819,10 @@ static void cam_temperature_report_wq_routine(
 
 }
 #endif
-#ifdef ODM_WT_EDIT
-/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-/*Zhen.Quan@Camera.Driver, 2019/11/20, add for [otp bringup] */
-struct match_hardwareinfo hardwareinfo_camera_name[] = {
-	{ SENSOR_DRVNAME_MONET_TRULY_MAIN_OV12A10, "monet_truly_main_ov12a10", " 0x1241"},
-	{ SENSOR_DRVNAME_MONET_HLT_FRONT_GC5035,   "monet_hlt_front_gc5035", " 0x5035"},
-	{ SENSOR_DRVNAME_MONETX_SHENGTAI_WIDE_OV8856, "monetx_shengtai_wide_ov8856", " 0x885A"},
-	{ SENSOR_DRVNAME_MONET_HLT_DEPTH_OV02A1B, "monet_hlt_depth_ov02a1b", " 0x2509"},
-	{ SENSOR_DRVNAME_MONETX_HLT_DEPTH_OV02A1B, "monetx_hlt_depth_ov02a1b", " 0x250A"},
-	{ SENSOR_DRVNAME_MONET_HLT_MACRO_GC2375H, "monet_hlt_macro_gc2375h", " 0x2375"},
-	{ SENSOR_DRVNAME_MONET_LH_MACRO_GC2375H, "monet_lh_macro_gc2375h", " 0x2376"},
-	{ SENSOR_DRVNAME_MONETX_HLT_MACRO_GC2375H, "monetx_hlt_macro_gc2375h", " 0x2377"},
-	{ SENSOR_DRVNAME_MONETX_TRULY_MAIN_S5KGM1SP, "monetx_truly_main_s5kgm1sp", "  0x08D1"},
-	{ SENSOR_DRVNAME_MONETX_OFILM_FRONT_OV16A1Q, "monetx_ofilm_front_ov16a1q", "   0x1641"},
-	{ SENSOR_DRVNAME_MONET_TXD_FRONT_HI556, "monet_txd_front_hi556", "0x0556"},
-	{ SENSOR_DRVNAME_MONETD_CXT_DEPTH_GC2375H, "monetd_cxt_depth_gc2375h", " 0x2378"},
-	{ SENSOR_DRVNAME_MONETD_LH_DEPTH_GC2375H, "monetd_lh_depth_gc2375h", " 0x2379"},
-	{ SENSOR_DRVNAME_MONETX_HLT_MACRO_GC2385, "monetx_hlt_macro_gc2385", " 0x2385"},
-	{ SENSOR_DRVNAME_MONETD_TRULY_MAIN_OV12A10, "monetd_truly_main_ov12a10", " 0x1242"},
-	{ SENSOR_DRVNAME_MONET_HLT_CUSTFRONT_GC5035,   "monet_hlt_custfront_gc5035", " 0x5036"},
-	{ SENSOR_DRVNAME_MONET_HLT_FRONT_GC5035B,   "monet_hlt_front_gc5035B", " 0x5037"},
-	{"NULL", "UNKNOWN", "0"},
-};
-#endif /* ODM_WT_EDIT */
+
 static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 {
 	int ret = 0;
-#ifdef ODM_WT_EDIT
-/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory] */
-	int i = 0;
-#endif /* ODM_WT_EDIT */
 	struct IMAGESENSOR_GETINFO_STRUCT *pSensorGetInfo;
 	struct IMGSENSOR_SENSOR    *psensor;
 
@@ -1116,43 +1106,6 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 				pSensorGetInfo->SensorId,
 				psensor->inst.psensor_name);
 
-#ifdef ODM_WT_EDIT
-/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-	for(i = 0; strcmp(hardwareinfo_camera_name[i].psensor_name, "NULL"); i++){
-		if(!strcmp(hardwareinfo_camera_name[i].psensor_name, psensor->inst.psensor_name)){
-			break;
-		}
-	}
-	pr_info("i = %d, hardwareinfo_camera_name:%s, psensor->inst.psensor_name:%s, sensor_idx:%s",
-		i, hardwareinfo_camera_name[i].psensor_name, psensor->inst.psensor_name, hardwareinfo_camera_name[i].sensor_id);
-
-	if(pSensorGetInfo->SensorId == 0){//main
-		hardwareinfo_set_prop(HARDWARE_BACK_CAM, hardwareinfo_camera_name[i].hardwareinfo_set_name);
-		hardwareinfo_set_prop(HARDWARE_BACK_CAM_SENSORID, hardwareinfo_camera_name[i].sensor_id);
-	}
-	if(pSensorGetInfo->SensorId == 1){//sub
-		hardwareinfo_set_prop(HARDWARE_FRONT_CAM, hardwareinfo_camera_name[i].hardwareinfo_set_name);
-		hardwareinfo_set_prop(HARDWARE_FRONT_CAM_SENSORID, hardwareinfo_camera_name[i].sensor_id);
-	}
-	if(pSensorGetInfo->SensorId == 2){//wide
-		hardwareinfo_set_prop(HARDWARE_WIDE_ANGLE_CAM, hardwareinfo_camera_name[i].hardwareinfo_set_name);
-		hardwareinfo_set_prop(HARDWARE_WIDE_ANGLE_CAM_SENSORID, hardwareinfo_camera_name[i].sensor_id);
-	}
-	if(pSensorGetInfo->SensorId == 3){//depth
-		hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM, hardwareinfo_camera_name[i].hardwareinfo_set_name);
-		hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_SENSORID, hardwareinfo_camera_name[i].sensor_id);
-	}
-	if(pSensorGetInfo->SensorId == 4){//mono
-		if (!check_board_id(board_monetd)){
-			hardwareinfo_set_prop(HARDWARE_MONO_CAM, hardwareinfo_camera_name[i].hardwareinfo_set_name);
-			hardwareinfo_set_prop(HARDWARE_MONO_CAM_SENSORID, hardwareinfo_camera_name[i].sensor_id);
-		}else{//depth
-			hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM, hardwareinfo_camera_name[i].hardwareinfo_set_name);
-			hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_SENSORID, hardwareinfo_camera_name[i].sensor_id);
-		}
-	}
-#endif /* ODM_WT_EDIT */
-
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
 	snprintf(pmtk_ccm_name,
 		camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
@@ -1327,7 +1280,8 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 			pr_err(" ioctl copy from user failed\n");
 			return -EFAULT;
 		}
-		if (FeatureParaLen > FEATURE_CONTROL_MAX_DATA_SIZE)
+		if (!FeatureParaLen ||
+			FeatureParaLen > FEATURE_CONTROL_MAX_DATA_SIZE)
 			return -EINVAL;
 
 		pFeaturePara = kmalloc(FeatureParaLen, GFP_KERNEL);
@@ -1416,8 +1370,6 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY:
 	case SENSOR_FEATURE_GET_SENSOR_HDR_CAPACITY:
 	case SENSOR_FEATURE_GET_MIPI_PIXEL_RATE:
-        /*Yang.Guo@Camera.Driver , 20200224, add for ITS--sensor_fusion*/
-        case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
 	case SENSOR_FEATURE_GET_PIXEL_RATE:
 	case SENSOR_FEATURE_SET_PDAF:
 	case SENSOR_FEATURE_SET_SHUTTER_FRAME_TIME:
@@ -1501,8 +1453,6 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY:
 	case SENSOR_FEATURE_GET_SENSOR_HDR_CAPACITY:
 	case SENSOR_FEATURE_GET_MIPI_PIXEL_RATE:
-        /*Yang.Guo@Camera.Driver , 20200224, add for ITS--sensor_fusion*/
-        case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
 	case SENSOR_FEATURE_GET_PIXEL_RATE:
 	{
 		MUINT32 *pValue = NULL;
@@ -2071,8 +2021,6 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 		break;
 	}
 	case SENSOR_FEATURE_SET_I2C_BUF_MODE_EN:
-		imgsensor_i2c_buffer_mode(
-		    (*(unsigned long long *)pFeaturePara));
 
 		break;
 	case SENSOR_FEATURE_SET_ESHUTTER:
@@ -2143,8 +2091,6 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_PDAF_INFO:
 	case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY:
 	case SENSOR_FEATURE_GET_SENSOR_HDR_CAPACITY:
-        /*Yang.Guo@Camera.Driver , 20200224, add for ITS--sensor_fusion*/
-        case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
 	case SENSOR_FEATURE_GET_MIPI_PIXEL_RATE:
 	case SENSOR_FEATURE_GET_PIXEL_RATE:
 	case SENSOR_FEATURE_SET_ISO:
@@ -2507,7 +2453,8 @@ static long imgsensor_ioctl(
 				i4RetValue =  -EFAULT;
 				goto CAMERA_HW_Ioctl_EXIT;
 			}
-		}
+		} else
+			memset(pBuff, 0, _IOC_SIZE(a_u4Command));
 	} else {
 		i4RetValue =  -EFAULT;
 		goto CAMERA_HW_Ioctl_EXIT;
@@ -2612,6 +2559,12 @@ static int imgsensor_open(struct inode *a_pstInode, struct file *a_pstFile)
 		imgsensor_clk_enable_all(&pgimgsensor->clk);
 
 	atomic_inc(&pgimgsensor->imgsensor_open_cnt);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	/*Liu.Yong@BSP.CHG.Basic, 20201112, add for charge status change*/
+	if(atomic_read(&pgimgsensor->imgsensor_open_cnt) > 0) {
+		oplus_chg_set_camera_status(true);
+	}
+#endif
 	pr_info(
 	    "%s %d\n",
 	    __func__,
@@ -2642,6 +2595,14 @@ static int imgsensor_release(struct inode *a_pstInode, struct file *a_pstFile)
 		imgsensor_dfs_ctrl(DFS_RELEASE, NULL);
 #endif
 	}
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	/*Liu.Yong@BSP.CHG.Basic, 20201112, add for charge status change*/
+	if(atomic_read(&pgimgsensor->imgsensor_open_cnt) == 0) {
+		oplus_chg_set_camera_status(false);
+	}
+#endif
+
 	pr_info(
 	    "%s %d\n",
 	    __func__,

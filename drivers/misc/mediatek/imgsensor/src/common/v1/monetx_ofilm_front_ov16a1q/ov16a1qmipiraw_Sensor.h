@@ -40,6 +40,7 @@ enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_CUSTOM2,
 	IMGSENSOR_MODE_CUSTOM3,
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
+	IMGSENSOR_MODE_CUSTOM4,
 };
 
 struct imgsensor_mode_struct {
@@ -132,6 +133,7 @@ struct imgsensor_info_struct {
 	kal_uint8 slim_video_delay_frame; /*enter slim video delay frame num*/
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic start*/
 	kal_uint8 custom3_delay_frame;
+	kal_uint8 custom4_delay_frame;
 
 	kal_uint8 margin;	      /*sensor framelength & shutter margin */
 	kal_uint32 min_shutter;	/*min shutter*/

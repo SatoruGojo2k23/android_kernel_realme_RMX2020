@@ -25,6 +25,10 @@
 #include <linux/compat.h>
 #endif
 
+#ifndef VENDOR_EDIT
+#define VENDOR_EDIT
+#endif
+
 /*************************************************
  *
  **************************************************/
@@ -39,10 +43,6 @@
 #define MINT8 signed char
 #define MINT16 signed short
 #define MINT32 signed int
-#endif
-
-#ifndef VENDOR_EDIT
-#define VENDOR_EDIT
 #endif
 
 /************************************************************************
@@ -91,14 +91,6 @@ enum {
 	IMAGE_HV_MIRROR
 };
 
-#ifdef VENDOR_EDIT
-enum {
-    SECURE_NONE = 0x00,
-    SECURE_STATIC = 0x01,
-    SECURE_DYNAMIC = 0x02,
-};
-#endif
-
 enum MSDK_SCENARIO_ID_ENUM {
 	MSDK_SCENARIO_ID_CAMERA_PREVIEW = 0,
 	MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG,
@@ -110,6 +102,7 @@ enum MSDK_SCENARIO_ID_ENUM {
 	MSDK_SCENARIO_ID_CUSTOM3,
 	MSDK_SCENARIO_ID_CUSTOM4,
 	MSDK_SCENARIO_ID_CUSTOM5,
+	MSDK_SCENARIO_ID_MAX,
 
 	/* Legacy scenario */
 	MSDK_SCENARIO_ID_CAMERA_ZSD,
@@ -117,7 +110,6 @@ enum MSDK_SCENARIO_ID_ENUM {
 	MSDK_SCENARIO_ID_CAMERA_3D_CAPTURE,
 	MSDK_SCENARIO_ID_CAMERA_3D_VIDEO,
 	MSDK_SCENARIO_ID_TV_OUT,
-	MSDK_SCENARIO_ID_MAX,
 };
 
 
@@ -132,7 +124,7 @@ enum ACDK_CAMERA_OPERATION_MODE_ENUM {
  ************************************************************************/
 
 /*  */
-#define MAX_NUM_OF_SUPPORT_SENSOR 18
+#define MAX_NUM_OF_SUPPORT_SENSOR 32
 /*  */
 #define SENSOR_CLOCK_POLARITY_HIGH    0
 #define SENSOR_CLOCK_POLARITY_LOW 1
@@ -146,11 +138,17 @@ enum ACDK_CAMERA_OPERATION_MODE_ENUM {
 #define SENSOR_MASTER_SYNC_MODE 1
 #define SENSOR_SLAVE_SYNC_MODE 2
 
+/* Define for flicker range table */
+#define GEN_FLICKER_TABLE(var) \
+unsigned int ((var)[][2]) = { \
+	{147, 153}, /* 15fps */ \
+	{247, 253}, /* 25fps */ \
+	{297, 305}, /* 30fps */ \
+	{593, 607}, /* 60fps */ \
+	{0, 0} /* end of table */ \
+}
+
 #define SENSOR_FEATURE_START                     3000
-#ifdef VENDOR_EDIT
-/*Henry.Chang@Camera.Driver add for 18531 ModuleSN*/
-#define IMGSENSOR_MODULE_SN_LENGTH       (16)
-#endif
 enum ACDK_SENSOR_FEATURE_ENUM {
 	SENSOR_FEATURE_BEGIN = SENSOR_FEATURE_START,
 	SENSOR_FEATURE_GET_RESOLUTION,
@@ -286,15 +284,31 @@ enum ACDK_SENSOR_FEATURE_ENUM {
 	SENSOR_FEATURE_GET_PIXEL_CLOCK_FREQ_BY_SCENARIO,
 	SENSOR_FEATURE_GET_PERIOD_BY_SCENARIO,
 	SENSOR_FEATURE_GET_BINNING_TYPE,
-    #ifdef VENDOR_EDIT
-	/*zhaozhengtao 2016/02/19,modify for different module*/
-	SENSOR_FEATURE_CHECK_MODULE_ID,
-	/*Henry.Chang@camera.driver 20181129, add for sensor Module SET*/
-	SENSOR_FEATURE_GET_MODULE_SN,
-	SENSOR_FEATURE_SET_SENSOR_OTP,
+	SENSOR_FEATURE_GET_Y_AVERAGE,
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
 	/*Henry.Chang@Camera.Driver modify for ModuleInfo 2019/05/30*/
+	SENSOR_FEATURE_GET_MODULE_SN,
 	SENSOR_FEATURE_GET_MODULE_INFO,
-    #endif
+	#endif
+	SENSOR_FEATURE_GET_GAIN_RANGE_BY_SCENARIO,
+	SENSOR_FEATURE_GET_BASE_GAIN_ISO_AND_STEP,
+	SENSOR_FEATURE_GET_MIN_SHUTTER_BY_SCENARIO,
+	SENSOR_FEATURE_GET_ANA_GAIN_TABLE,
+	SENSOR_FEATURE_GET_FRAME_CTRL_INFO_BY_SCENARIO,
+	SENSOR_FEATURE_GET_AWB_REQ_BY_SCENARIO,
+	#ifdef VENDOR_EDIT
+	/*Henry.Chang@Camera.Driver modify for ModuleInfo 2019/05/30*/
+	SENSOR_FEATURE_GET_EEPROM_DATA = 0x8000,
+	SENSOR_FEATURE_SET_SENSOR_OTP,
+	SENSOR_FEATURE_CHECK_MODULE_ID,
+
+	SENSOR_FEATURE_GET_EEPROM_COMDATA = 0x9000,
+	SENSOR_FEATURE_GET_EEPROM_STEREODATA,
+	#endif
+	SENSOR_FEATURE_GET_STAGGER_TARGET_SCENARIO,
+	SENSOR_FEATURE_GET_STAGGER_MAX_EXP_TIME,
+	SENSOR_FEATURE_SEAMLESS_SWITCH,
+	SENSOR_FEATURE_GET_SEAMLESS_SCENARIOS,
 	SENSOR_FEATURE_MAX
 };
 
@@ -423,17 +437,6 @@ enum SENSOR_DPCM_TYPE_ENUM {
 	COMP8_DI_37 = 0x37,
 	COMP8_DI_2A = 0x2A,
 };
-#ifdef VENDOR_EDIT
-/*Henry.Chang@camera.driver 20181129, add for sensor Module SET*/
-#define OPPO_STEREO_CALI_DATA_LENGTH     (1561)
-typedef struct {
-  MUINT32 uSensorId;
-  MUINT32 uDeviceId;
-  MUINT16 baseAddr;
-  MUINT16 dataLength;
-  MUINT8  uData[OPPO_STEREO_CALI_DATA_LENGTH];
-} ACDK_SENSOR_ENGMODE_STEREO_STRUCT, *PACDK_SENSOR_ENGMODE_STEREO_STRUCT;
-#endif
 
 struct ACDK_SENSOR_RESOLUTION_INFO_STRUCT {
 	MUINT16 SensorPreviewWidth;
@@ -638,13 +641,9 @@ struct ACDK_SENSOR_INFO_STRUCT {
 	MUINT16 SensorVerFOV;
 	MUINT16 SensorOrientation;
 	MUINT32 SensorModuleID;
-	#ifdef VENDOR_EDIT
-    MUINT8 sensorSecureType;
-	#endif
 };
 
 #define ACDK_SENSOR_INFO2_STRUCT struct ACDK_SENSOR_INFO_STRUCT
-#define PACDK_SENSOR_INFO2_STRUCT PACDK_SENSOR_INFO_STRUCT
 
 enum ACDK_CCT_REG_TYPE_ENUM {
 	ACDK_CCT_REG_ISP = 0,
@@ -889,7 +888,14 @@ enum VC_FEATURE {
 	VC_3HDR_Y,
 	VC_3HDR_AE,
 	VC_3HDR_MAX_NUM,
-	VC_MAX_NUM = VC_3HDR_MAX_NUM,
+
+	VC_STAGGER_MIN_NUM = VC_3HDR_MAX_NUM,
+	VC_STAGGER_EMBEDDED = VC_STAGGER_MIN_NUM,
+	VC_STAGGER_NE,  //9
+	VC_STAGGER_ME,  //10
+	VC_STAGGER_SE,  //11
+	VC_STAGGER_MAX_NUM,
+	VC_MAX_NUM = VC_STAGGER_MAX_NUM,
 };
 
 struct SINGLE_VC_INFO2 {
@@ -952,6 +958,8 @@ enum IMGSENSOR_HDR_SUPPORT_TYPE_ENUM {
 	HDR_SUPPORT_RAW = 1,
 	HDR_SUPPORT_CAMSV = 2,
 	ZHDR_SUPPORT_RAW = 3,
+	MVHDR_SUPPORT_MultiCAMSV = 4,
+	HDR_SUPPORT_STAGGER = 5,
 };
 
 enum IMGSENSOR_HDR_MODE_ENUM {
@@ -960,6 +968,10 @@ enum IMGSENSOR_HDR_MODE_ENUM {
 	HDR_CAMSV = 2,
 	HDR_RAW_ZHDR = 9,
 	HDR_MultiCAMSV = 10,
+	HDR_RAW_STAGGER_2EXP = 0xB,
+	HDR_RAW_STAGGER_MIN = HDR_RAW_STAGGER_2EXP,
+	HDR_RAW_STAGGER_3EXP = 0xC,
+	HDR_RAW_STAGGER_MAX = HDR_RAW_STAGGER_3EXP,
 };
 
 enum IMGSENSOR_PDAF_SUPPORT_TYPE_ENUM {
@@ -1115,6 +1127,48 @@ struct IMAGESENSOR_GET_SUPPORTED_ISP_CLK {
 	unsigned int clklevel[ISP_CLK_LEVEL_CNT]; /* Reocrd each clk level */
 };
 
+#ifdef VENDOR_EDIT
+/*Henry.Change@Camera.Driver 2019/9/18, add for camera engmode*/
+#define OPPO_STEREO_CALI_DATA_LENGTH          (1561)
+//Feiping.Li@Cam.Drv, 20200208, add for qcom 128 data header
+#define OPPO_STEREO_CALI_DATA_LENGTH_QCOM     (1561 + 128)
+#define DUALCAM_CALI_DATA_LENGTH_TOTAL        (3102)
+#define DUALCAM_CALI_DATA_LENGTH_TOTAL_QCOM   (3102 + 128)
+#define DUALCAM_CALI_DATA_LENGTH_TOTAL_TELE   (2450)
+#define CALI_DATA_MASTER_LENGTH               (1557)
+#define CALI_DATA_MASTER_LENGTH_QCOM          (1557+128)
+#define CALI_DATA_SLAVE_LENGTH                (1545)
+#define CALI_DATA_SLAVE_LENGTH_20645          (1561)
+#define CALI_DATA_SLAVE_TELE_LENGTH           (909)
+#define CAMERA_EEPPROM_COMDATA_LENGTH         (40)
+/*pankaj.kumar@Camera.Driver 20200918 adding for 18531*/
+#define GC5035_STEREO_START_ADDR              (0x1600)
+/*Henry.Chang@Cam.Drv add for 20131/20255 dualcali write eeprom 20200810*/
+#define OV64B_STEREO_START_ADDR               (0x2000)
+#define IMX319_STEREO_START_ADDR              (0x2600)
+#define HI846_STEREO_START_ADDR               (0x1E80)
+#define OV48B_STEREO_START_ADDR               (0x2840)
+#define S5KGM1ST_STEREO_START_ADDR            (0x2840)
+#define HI846_STEREO_START_ADDR_20645         (0x1A20)
+#define HI846Q2R_STEREO_START_ADDR            (0x1E80)
+#define IMX686Q2R_STEREO_START_ADDR           (0x26D0)
+#define S5KGW3_STEREO_START_ADDR_20630        (0x2D98)
+#define HI846_STEREO_START_ADDR_20630         (0x1A20)
+#define S5KGM1ST_STEREO_START_ADDR_20633      (0x2242)
+#define HI846_STEREO_START_ADDR_20633         (0x1A20)
+#define S5KGM1ST_STEREO_START_ADDR_20611      (0x2242)
+#define HI846_STEREO_START_ADDR_20611         (0x1A20)
+
+typedef struct {
+  MUINT32 uSensorId;
+  MUINT32 uDeviceId;
+  MUINT16 baseAddr;
+  MUINT16 dataLength;
+  //Feiping.Li@Cam.Drv, 20200208, modify for qcom 128 data header
+  MUINT8  uData[OPPO_STEREO_CALI_DATA_LENGTH_QCOM];
+  } ACDK_SENSOR_ENGMODE_STEREO_STRUCT, *PACDK_SENSOR_ENGMODE_STEREO_STRUCT;
+#endif
+
 #ifdef CONFIG_COMPAT
 
 struct COMPAT_IMGSENSOR_GET_CONFIG_INFO_STRUCT {
@@ -1262,7 +1316,7 @@ struct MULTI_SENSOR_FUNCTION_STRUCT2 {
 	MUINT32 (*SensorClose)(void);
 };
 
-struct SENSOR_FUNCTION_STRUCT{
+struct SENSOR_FUNCTION_STRUCT {
 	MUINT32 (*SensorOpen)(void);
 	MUINT32 (*SensorGetInfo)(enum MSDK_SCENARIO_ID_ENUM ScenarioId,
 	    MSDK_SENSOR_INFO_STRUCT *pSensorInfo,
@@ -1290,12 +1344,15 @@ struct SENSOR_FUNCTION_STRUCT{
 	void   *psensor_inst; /* IMGSENSOR_SENSOR_INST */
 };
 
+#ifdef VENDOR_EDIT
+/* Wenjun.Wu@Cam.Drv, 20191223, driver porting */
 typedef struct SENSOR_FUNCTION_STRUCT* PSENSOR_FUNCTION_STRUCT;
+#endif
 
 struct ACDK_KD_SENSOR_INIT_FUNCTION_STRUCT {
 	MUINT32 SensorId;
 	MUINT8 drvname[32];
-	MUINT32 (*SensorInit)(PSENSOR_FUNCTION_STRUCT *pfFunc);
+	MUINT32 (*SensorInit)(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 };
 
 /* For sensor synchronize the exposure time / sensor gain and isp gain. */
@@ -1392,7 +1449,7 @@ struct SENSOR_FLASHLIGHT_AE_INFO_STRUCT {
 struct IMGSENSOR_SENSOR_LIST {
 	MUINT32 id;
 	MUINT8 name[32];
-	MUINT32 (*init)(PSENSOR_FUNCTION_STRUCT *pfFunc);
+	MUINT32 (*init)(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 };
 /* multisensor driver */
 

@@ -54,7 +54,17 @@ enum IMGSENSOR_RETURN imgsensor_hw_init(struct IMGSENSOR_HW *phw)
 	for (i = 0; i < IMGSENSOR_SENSOR_IDX_MAX_NUM; i++) {
 		psensor_pwr = &phw->sensor_pwr[i];
 
-		pcust_pwr_cfg = imgsensor_custom_config;
+		#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if (pascal_project() == 4) {
+			pcust_pwr_cfg =imgsensor_custom_config;
+		} else if ((pascal_project() == 5) || (pascal_project() == 6) || (pascal_project() == 7)) {
+			pcust_pwr_cfg =imgsensor_custom_config_monetx;
+		} else if (pascal_project() == 8) {
+			pcust_pwr_cfg =imgsensor_custom_config_pascalC;
+		} else {
+			pcust_pwr_cfg = imgsensor_custom_config;
+		}
+		#endif
 		while (pcust_pwr_cfg->sensor_idx != i &&
 		       pcust_pwr_cfg->sensor_idx != IMGSENSOR_SENSOR_IDX_NONE)
 			pcust_pwr_cfg++;
@@ -185,22 +195,28 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 {
 	enum IMGSENSOR_SENSOR_IDX sensor_idx = psensor->inst.sensor_idx;
 	char str_index[LENGTH_FOR_SNPRINTF];
+	int ret = 0;
 
 	pr_info(
 		"sensor_idx %d, power %d curr_sensor_name %s, enable list %s\n",
 		sensor_idx,
 		pwr_status,
 		curr_sensor_name,
-		phw->enable_sensor_by_index[sensor_idx] == NULL
+		phw->enable_sensor_by_index[(uint32_t)sensor_idx] == NULL
 		? "NULL"
-		: phw->enable_sensor_by_index[sensor_idx]);
+		: phw->enable_sensor_by_index[(uint32_t)sensor_idx]);
 
-	if (phw->enable_sensor_by_index[sensor_idx] &&
-	!strstr(phw->enable_sensor_by_index[sensor_idx], curr_sensor_name))
+	if (phw->enable_sensor_by_index[(uint32_t)sensor_idx] &&
+	!strstr(phw->enable_sensor_by_index[(uint32_t)sensor_idx], curr_sensor_name))
 		return IMGSENSOR_RETURN_ERROR;
 
 
-	snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
+	ret = snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
+	if (ret == 0) {
+		pr_info("Error! snprintf allocate 0");
+		ret = IMGSENSOR_RETURN_ERROR;
+		return ret;
+	}
 	imgsensor_hw_power_sequence(
 	    phw,
 	    sensor_idx,

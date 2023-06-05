@@ -24,6 +24,10 @@ enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_VIDEO,
 	IMGSENSOR_MODE_HIGH_SPEED_VIDEO,
 	IMGSENSOR_MODE_SLIM_VIDEO,
+	IMGSENSOR_MODE_CUSTOM1,
+	IMGSENSOR_MODE_CUSTOM2,
+	IMGSENSOR_MODE_CUSTOM3,
+	IMGSENSOR_MODE_CUSTOM4,
 };
 
 struct imgsensor_mode_struct {
@@ -89,6 +93,10 @@ struct imgsensor_info_struct {
 	struct imgsensor_mode_struct normal_video;//normal video  scenario relative information
 	struct imgsensor_mode_struct hs_video;	//high speed video scenario relative information
 	struct imgsensor_mode_struct slim_video;	//slim video for VT scenario relative information
+	struct imgsensor_mode_struct custom1;
+	struct imgsensor_mode_struct custom2;
+	struct imgsensor_mode_struct custom3;
+	struct imgsensor_mode_struct custom4;
 
 	kal_uint8  ae_shut_delay_frame;	//shutter delay frame for AE cycle
 	kal_uint8  ae_sensor_gain_delay_frame;	//sensor gain delay frame for AE cycle
@@ -102,6 +110,10 @@ struct imgsensor_info_struct {
 	kal_uint8  video_delay_frame;	//enter video delay frame num
 	kal_uint8  hs_video_delay_frame;	//enter high speed video  delay frame num
 	kal_uint8  slim_video_delay_frame;	//enter slim video delay frame num
+	kal_uint8  custom1_delay_frame;
+	kal_uint8  custom2_delay_frame;
+	kal_uint8  custom3_delay_frame;
+	kal_uint8  custom4_delay_frame;
 
 	kal_uint8  margin;				//sensor framelength & shutter margin
 	kal_uint32 min_shutter;			//min shutter
@@ -128,9 +140,11 @@ struct imgsensor_info_struct {
 extern int iReadRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u8 * a_pRecvData, u16 a_sizeRecvData, u16 i2cId);
 extern int iWriteRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u16 i2cId);
 extern bool read_3P9_eeprom( kal_uint16 addr, BYTE* data, kal_uint32 size);
-#ifndef VENDOR_EDIT
+#ifdef VENDOR_EDIT
 /*Caohua.Lin@Camera.Driver 20180707 add for s5k3p9sp crosstalk*/
-extern unsigned int brcb032gwz_read_4cell_from_eeprom_s5k3p9sp(char *data);
+#ifndef CONFIG_MACH_MT6771
+extern unsigned int p24c64e_read_4cell_from_eeprom_s5k3p9sp(char *data);
+#endif
 #endif
 
 #endif

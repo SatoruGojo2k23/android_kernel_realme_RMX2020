@@ -21,11 +21,14 @@
 
 
 #define IMGSENSOR_HW_POWER_INFO_MAX	12
-#ifndef ODM_WT_EDIT
-#define IMGSENSOR_HW_SENSOR_MAX_NUM	8
-#else
-/* Tian.Tian@Camera.Driver, 2019/11/28, Modify for camera power seq is not right */
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 #define IMGSENSOR_HW_SENSOR_MAX_NUM	32
+#else
+#define IMGSENSOR_HW_SENSOR_MAX_NUM	8
+#endif
+
+#ifndef MIPI_SWITCH
+#define MIPI_SWITCH
 #endif
 
 enum IMGSENSOR_HW_PIN {
@@ -151,7 +154,10 @@ struct IMGSENSOR_HW_DEVICE {
 	enum IMGSENSOR_HW_ID    id;
 };
 
+int pascal_project(void);
 extern struct IMGSENSOR_HW_CFG       imgsensor_custom_config[];
+extern struct IMGSENSOR_HW_CFG       imgsensor_custom_config_monetx[];
+extern struct IMGSENSOR_HW_CFG       imgsensor_custom_config_pascalC[];
 extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[];
 extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[];
 extern enum IMGSENSOR_RETURN

@@ -29,13 +29,6 @@
 #include "kd_imgsensor_errcode.h"
 #include "kd_camera_typedef.h"
 #include "ov02a1bmipiraw_Sensor.h"
-#ifndef VENDOR_EDIT
-#define VENDOR_EDIT
-#endif
-#ifdef VENDOR_EDIT
-/*Feng.Hu@Camera.Driver 20170815 add for multi project using one build*/
-//#include <soc/oppo/oppo_project.h>
-#endif
 
 #define PFX "OV02A10_camera_sensor"
 //#define LOG_WRN(format, args...) xlog_printk(ANDROID_LOG_WARN ,PFX, "[%S] " format, __FUNCTION__, ##args)
@@ -1128,7 +1121,7 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 			*sensor_id = ((read_cmos_sensor(0x0200) << 8) | read_cmos_sensor(0x0300)) + 1;
 			if (*sensor_id == imgsensor_info.sensor_id) {
 				/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-				hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM_MOUDULE_ID, "Hlt");
+				//hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM_MOUDULE_ID, "Hlt");
 				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
 				return ERROR_NONE;
 			}

@@ -17,13 +17,28 @@
 #include "regulator/regulator.h"
 #include "gpio/gpio.h"
 
+
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+/*GaoWang@Cam.Drv add for 20682 camera BringUp 20200918*/
+#include "wl2864/wl2864.h"
+#endif
+
 #include "imgsensor_hw.h"
 #include "imgsensor_cfg_table.h"
 enum IMGSENSOR_RETURN (*hw_open[IMGSENSOR_HW_ID_MAX_NUM])
 	(struct IMGSENSOR_HW_DEVICE **) = {
 	imgsensor_hw_mclk_open,
 	imgsensor_hw_regulator_open,
-	imgsensor_hw_gpio_open
+	imgsensor_hw_gpio_open,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+/*GaoWang@Cam.Drv add for 20682 camera BringUp 20200918*/
+	imgsensor_hw_wl2864_open
+#endif
+
 };
 
 struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
@@ -899,6 +914,19 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			{SensorMCLK, Vol_High, 2},
 			{PDN, Vol_High, 0},
 			{RST, Vol_High, 10}
+		},
+	},
+#endif
+#if defined(S5KHM2SP_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_S5KHM2SP_MIPI_RAW,
+		{
+			{RST, Vol_Low, 0},
+			{DVDD, Vol_1100, 1},
+			{AVDD, Vol_2800, 1},
+			{DOVDD, Vol_1800, 1},
+			{RST, Vol_High, 1},
+			{SensorMCLK, Vol_High, 3}
 		},
 	},
 #endif

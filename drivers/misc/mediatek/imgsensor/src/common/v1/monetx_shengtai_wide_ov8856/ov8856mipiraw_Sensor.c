@@ -57,7 +57,7 @@
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
 static struct imgsensor_info_struct imgsensor_info = {
-	.sensor_id = OV8856_SENSOR_ID,		/*record sensor id defined in Kd_imgsensor.h*/
+	.sensor_id = MONETX_SHENGTAI_WIDE_OV8856_SENSOR_ID,		/*record sensor id defined in Kd_imgsensor.h*/
 	.checksum_value = 0xb1893b4f,		/*checksum value for Camera Auto Test*/
 	.pre = {
 		.pclk = 140400000,				/*record different mode's pclk*/
@@ -579,7 +579,7 @@ static void night_mode(kal_bool enable)
 *
 *************************************************************************/
 
-kal_uint16 addr_data_pair_init_ov8856[] = {
+static kal_uint16 addr_data_pair_init_ov8856[] = {
 	0x0103, 0x01,
 	0x0302, 0x37,
 	0x0303, 0x01,
@@ -802,7 +802,7 @@ static void sensor_init(void)
 * GLOBALS AFFECTED
 *
 *************************************************************************/
-kal_uint16 addr_data_pair_preview_ov8856[] = {
+static kal_uint16 addr_data_pair_preview_ov8856[] = {
 	0x0302, 0x37,
 	0x030d, 0x1b,
 	0x3501, 0x4c,
@@ -884,7 +884,7 @@ static void preview_setting(void)
 * GLOBALS AFFECTED
 *
 *************************************************************************/
-kal_uint16 addr_data_pair_capture_30fps_ov8856[] = {
+static kal_uint16 addr_data_pair_capture_30fps_ov8856[] = {
 	0x0302, 0x37,
 	0x030d, 0x1b,
 	0x3501, 0x9a,
@@ -941,7 +941,7 @@ kal_uint16 addr_data_pair_capture_30fps_ov8856[] = {
 	0x5e10, 0xfc,
 };
 
-kal_uint16 addr_data_pair_capture_15fps_ov8856[] = {
+static kal_uint16 addr_data_pair_capture_15fps_ov8856[] = {
 	0x0302, 0x37,
 	0x030d, 0x1b,
 	0x3501, 0x9a,
@@ -1037,7 +1037,7 @@ static void capture_setting(kal_uint16 currefps)
 *************************************************************************/
 
 
-kal_uint16 addr_data_pair_vga_setting_120fps_ov8856[] = {
+static kal_uint16 addr_data_pair_vga_setting_120fps_ov8856[] = {
 	0x0302, 0x37,
 	0x030d, 0x1b,
 	0x3501, 0x25,
@@ -1134,7 +1134,7 @@ static void slim_video_setting(void)
 * GLOBALS AFFECTED
 *
 *************************************************************************/
-kal_uint16 addr_data_pair_custom1_24fps_ov8856[] = {
+static kal_uint16 addr_data_pair_custom1_24fps_ov8856[] = {
  	0x0302, 0x37,
 	0x030d, 0x1b,
 	0x3501, 0x9a,
@@ -1230,12 +1230,12 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 			*sensor_id = ((read_cmos_sensor(0x300B) << 8) | read_cmos_sensor(0x300C));
 			if (*sensor_id == imgsensor_info.sensor_id) {
 				/* Zhen.Quan@Camera.Driver, 2019/10/17, add for [otp bringup] */
-#if ENABLE_OV8856_OTP
+#if 1
 				if(!check_otp_data(&monetx_shengtai_wide_ov8856_eeprom_data, monetx_shengtai_wide_ov8856_checksum, sensor_id)){
 					break;
 				} else {
 					/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-					hardwareinfo_set_prop(HARDWARE_WIDE_ANGLE_CAM_MOUDULE_ID, "ShengTai");
+					//hardwareinfo_set_prop(HARDWARE_WIDE_ANGLE_CAM_MOUDULE_ID, "ShengTai");
 				}
 #endif
 				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x, ver = 0x%x<0xB1=r2a,0xB0=r1a>\n",
@@ -2048,7 +2048,7 @@ static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 };
 
 
-UINT32 OV8856_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)
+UINT32 MONETX_SHENGTAI_WIDE_OV8856_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)
 {
 	/* To Do : Check Sensor status here */
 	if (pfFunc != NULL)

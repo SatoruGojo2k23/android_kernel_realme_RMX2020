@@ -47,6 +47,7 @@
 #include <linux/types.h>
 
 #include "ov12a10mipiraw_Sensor.h"
+#include <soc/oppo/oppo_project.h>
 
 /* Zhen.Quan@Camera.Driver, 2019/10/12, add for [otp bringup] */
 #include "cam_cal_define.h"
@@ -63,7 +64,7 @@
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
 static struct imgsensor_info_struct imgsensor_info = {
-	.sensor_id = OV12A10_SENSOR_ID,
+	.sensor_id = MONET_TRULY_MAIN_OV12A10_SENSOR_ID,
 
 	.checksum_value = 0x8b86a64,
 
@@ -251,7 +252,7 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[10] = {
 	{ 4112, 3088,    0,    0, 4112, 3088, 4112, 3088,
 	8,    8, 4096, 3072,    0,    0, 4096, 3072},
 //hs-video
-	{ 4096, 3072,   0,   800,  4096, 1472,   2048,
+	{ 4112, 3088,   0,   800,  4096, 1472,   2048,
         736,  384,    8,   1280,  720,  0,   0,   1280,  720},/*yang.guo@ODM_WT.Camera.hal, 2019/12/21, mod customer setting  for hs video cam  */
 //slim-video
 	{ 4112, 3088,  0, 0, 4112,   3088,   2056,  1544,
@@ -1144,11 +1145,11 @@ static void preview_setting(void)//jack yan check
 	write_cmos_sensor(0x3813, 0x04);
 #endif
 #if 0
-	#ifdef OV12A10_SYNC_OPEN
+//	#ifdef OV12A10_SYNC_OPEN
 	write_cmos_senor(0x3002, 0x21);
 	write_cmos_senor(0x3832, 0x08);
 	write_cmos_senor(0x3833, 0x30);
-	#endif
+//	#endif
 #endif
 
 }
@@ -1374,11 +1375,11 @@ static void capture_setting(kal_uint16 currefps)//jack yan check
 		write_cmos_sensor(0x3813, 0x08);
 
 #if 0
-	#ifdef OV12A10_SYNC_OPEN
+//	#ifdef OV12A10_SYNC_OPEN
 	write_cmos_senor(0x3002, 0x21);//close the func
 	write_cmos_senor(0x3832, 0x08);
 	write_cmos_senor(0x3833, 0x30);
-	#endif
+//	#endif
 #endif
 	} else if (currefps == 240) {
 		//24fps for PIP
@@ -1429,11 +1430,11 @@ static void capture_setting(kal_uint16 currefps)//jack yan check
 		write_cmos_sensor(0x3811, 0x0a);
 		write_cmos_sensor(0x3813, 0x08);
 #if 0
-	#ifdef OV12A10_SYNC_OPEN
+//	#ifdef OV12A10_SYNC_OPEN
 	write_cmos_senor(0x3002, 0x21);//close the func
 	write_cmos_senor(0x3832, 0x08);
 	write_cmos_senor(0x3833, 0x30);
-	#endif
+//	#endif
 #endif
 
 	} else {
@@ -1486,7 +1487,7 @@ static void capture_setting(kal_uint16 currefps)//jack yan check
 		write_cmos_sensor(0x3813, 0x08);
 
 #if 0
-	#ifdef OV12A10_SYNC_OPEN
+//	#ifdef OV12A10_SYNC_OPEN
 
 	write_cmos_sensor(0x3002, 0x61);
 	write_cmos_sensor(0x3832, 0x18);
@@ -1496,7 +1497,7 @@ static void capture_setting(kal_uint16 currefps)//jack yan check
 	write_cmos_sensor(0x381a, 0x1c);
 	write_cmos_sensor(0x381b, 0xe0);
 
-	#endif
+//	#endif
 #endif
 	}
 #endif
@@ -1559,11 +1560,11 @@ static void normal_video_setting(kal_uint16 currefps)
 	write_cmos_sensor(0x3813, 0x08);
 #endif
 #if 0
-	#ifdef OV12A10_SYNC_OPEN
+//	#ifdef OV12A10_SYNC_OPEN
 	write_cmos_senor(0x3002, 0x21);
 	write_cmos_senor(0x3832, 0x08);
 	write_cmos_senor(0x3833, 0x30);
-	#endif
+//	#endif
 #endif
 }
 
@@ -1673,11 +1674,11 @@ static void hs_video_setting(void)
 	//write_cmos_sensor(0x3813, 0x08);
 #endif
 #if 0
-    #ifdef OV12A10_SYNC_OPEN
+//    #ifdef OV12A10_SYNC_OPEN
 	write_cmos_senor(0x3002, 0x21);
 	write_cmos_senor(0x3832, 0x08);
 	write_cmos_senor(0x3833, 0x30);
-	#endif
+//	#endif
 #endif
 }
 
@@ -1867,15 +1868,57 @@ static kal_uint32 return_sensor_id(void)
 		read_cmos_sensor(0x300c));
 }
 
+static kal_uint64 read_head_id(void)
+{
+	kal_uint64 head_id = 0;
+	kal_uint16 module_byte_l = 0;
+	kal_uint16 module_byte_h = 0;
+	kal_uint16 sensor_byte_l = 0;
+	kal_uint16 sensor_byte_h = 0;
+	kal_uint16 module_byte = 0;
+	kal_uint16 sensor_byte = 0;
+
+	char pusendcmd_module_l[2] = {(char)(0x00 >> 8), (char)(0x00 & 0xFF)};
+	char pusendcmd_sensor_l[2] = {(char)(0x06 >> 8), (char)(0x06 & 0xFF)};
+	char pusendcmd_module_h[2] = {(char)(0x01 >> 8), (char)(0x01 & 0xFF)};
+	char pusendcmd_sensor_h[2] = {(char)(0x07 >> 8), (char)(0x07 & 0xFF)};
+
+	iReadRegI2C(pusendcmd_module_l, 2, (u8 *)&module_byte_l, 1, 0xA0/*EEPROM_READ_ID*/);
+	iReadRegI2C(pusendcmd_sensor_l, 2, (u8 *)&sensor_byte_l, 1, 0xA0/*EEPROM_READ_ID*/);
+	iReadRegI2C(pusendcmd_module_h, 2, (u8 *)&module_byte_h, 1, 0xA0/*EEPROM_READ_ID*/);
+	iReadRegI2C(pusendcmd_sensor_h, 2, (u8 *)&sensor_byte_h, 1, 0xA0/*EEPROM_READ_ID*/);
+
+	sensor_byte = ((sensor_byte_h << 8) | (sensor_byte_l));
+	module_byte = ((module_byte_h << 8) | (module_byte_l));
+
+	head_id = (kal_uint64)((sensor_byte << 24) | module_byte);
+	LOG_INF("the head id is %llx\n", head_id);
+
+	return head_id;
+}
+
+static kal_uint32 monet_project(void) //monet:1, monetZ:2
+{
+	kal_uint32 version_value;
+
+	version_value = get_Operator_Version();
+	if (version_value == 111 || version_value == 112
+		|| version_value == 113 || version_value == 115
+		|| version_value == 116) {
+		return 1;
+	} else if (version_value == 101 || version_value == 114) {
+		return 2;
+	}
+
+	return 0;
+}
+
 static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 {
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
-	/*Puxiaojun@ODM_WT.Camera.Driver, 2019/12/15,camera distinction snesor */
-	if (!check_board_id(board_monet)){
-		*sensor_id = 0xFFFFFFFF;
-		return ERROR_SENSOR_CONNECT_FAIL;
-	}
+	kal_uint64 head_id = 0;
+
 	while (imgsensor_info.i2c_addr_table[i] != 0xff) {
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
@@ -1884,20 +1927,23 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		do {
 			*sensor_id = return_sensor_id();
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				/* Zhen.Quan@Camera.Driver, 2019/10/17, add for [otp bringup] */
-#if ENABLE_OV12A10_OTP
+				head_id = read_head_id();
 				if(!check_otp_data(&monet_truly_main_ov12a10_eeprom_data, monet_truly_main_ov12a10_checksum, sensor_id)){
 					break;
 				} else {
 					/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-					hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "Truly");
+					//hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "Truly");
 				}
-#endif
-				LOG_INF("ov12a read[%s] sensor id: 0x%x\n",
-					__func__, *sensor_id);
-				return ERROR_NONE;
+				if ((head_id == 0x2f000002) && (monet_project() == 1)) {
+//					hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM_MOUDULE_ID, "");
+					LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
+					return ERROR_NONE;
+				} else {
+					*sensor_id = 0xFFFFFFFF;
+					LOG_INF("match fail");
+					return ERROR_SENSOR_CONNECT_FAIL;
+				}
 			}
-
 			retry--;
 		} while (retry > 0);
 		i++;

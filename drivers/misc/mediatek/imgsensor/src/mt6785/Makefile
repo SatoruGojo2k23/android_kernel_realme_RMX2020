@@ -30,6 +30,14 @@ obj-y				+= ../common/$(COMMON_VERSION)/imgsensor_legacy.o
 obj-y				+= ../common/$(COMMON_VERSION)/imgsensor_proc.o
 obj-y				+= ../common/$(COMMON_VERSION)/imgsensor_sensor_list.o
 obj-y				+= ../common/$(COMMON_VERSION)/seninf.o
+#ifdef VENDOR_EDIT
+#Henry.Chang@Cam.Drv, 20200725, add for oppo custom  operation
+obj-y				+= ../OplusImgsensor/imgsensor_eeprom.o
+obj-y				+= ../OplusImgsensor/imgsensor_hwcfg_custom.o
+obj-y				+= ../OplusImgsensor/imgsensor_hwcfg_mt6785.o
+#endif
+# Oplus platformflag
+subdir-ccflags-y += -DSENSOR_PLATFORM_4G_20682
 define FILTER_DRV
 ifeq ($(wildcard $(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/camera_project/$(ARCH_MTK_PROJECT)/$(1)),)
 ifeq ($(wildcard $(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/$(1)),)
@@ -43,14 +51,11 @@ endif
 endef
 $(foreach drv,$(subst $\",,$(CONFIG_CUSTOM_KERNEL_IMGSENSOR)),$(eval $(call FILTER_DRV,$(drv))))
 ifneq ($(common_drv),)
-#$(info imgsensor drv by common $(common_drv))
 endif
 obj-y				+= $(common_drv)
 ifneq ($(platform_drv),)
-#$(info imgsensor drv by platform $(platform_drv))
 endif
 
-#$(info imgsensor drv by platform $(project_drv))
 
 obj-y				+= $(platform_drv)
 ifeq (,$(wildcard $(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/camera_project/$(ARCH_MTK_PROJECT)/camera_hw))

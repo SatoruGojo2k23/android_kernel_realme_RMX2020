@@ -1748,27 +1748,18 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		do {
 			*sensor_id = return_sensor_id();
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				/* Zhen.Quan@Camera.Driver, 2019/10/17, add for [otp bringup] */
-#if ENABLE_GC5035B_OTP
 				if(!check_otp_data(&monet_hlt_front_gc5035b_eeprom_data, monet_hlt_front_gc5035b_checksum, sensor_id)){
-					//break;
-					*sensor_id = return_sensor_id();
+					break;
 				} else {
-				//printk ("puxiaojun dataBuffer[3]= %d",monet_hlt_front_gc5035b_eeprom_data.dataBuffer[3]);
-
-					if(monet_hlt_front_gc5035b_eeprom_data.dataBuffer[3] != LENS_ID)
-					{
-					    *sensor_id = 0xFFFFFFFF;
-					    return ERROR_SENSOR_CONNECT_FAIL;
-					}
 					/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-					hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "HltB");
+					//hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "Truly");
 				}
-#endif
 				gc5035_otp_identify();
 				cam_pr_debug("i2c write id: 0x%x, sensor id: 0x%x\n",
 					imgsensor.i2c_write_id, *sensor_id);
-				return ERROR_NONE;
+//				return ERROR_NONE;
+				*sensor_id = 0xFFFFFFFF;
+				return ERROR_SENSOR_CONNECT_FAIL;//monet和Z不用此sensor
 			}
 			cam_pr_debug("Read sensor id fail, write id: 0x%x, id: 0x%x\n",
 				imgsensor.i2c_write_id, *sensor_id);
@@ -1786,7 +1777,9 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		return ERROR_SENSOR_CONNECT_FAIL;
 	}
 
-	return ERROR_NONE;
+//	return ERROR_NONE;
+	*sensor_id = 0xFFFFFFFF;
+	return ERROR_SENSOR_CONNECT_FAIL;//monet和Z不用此sensor
 }
 
 static kal_uint32 open(void)

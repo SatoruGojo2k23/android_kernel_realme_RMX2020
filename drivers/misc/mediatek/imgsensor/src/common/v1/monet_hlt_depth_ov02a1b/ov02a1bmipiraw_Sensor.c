@@ -22,6 +22,7 @@
 #include <linux/types.h>
 /*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
 #include <linux/hardware_info.h>
+#include <soc/oppo/oppo_project.h>
 
 //#include "kd_camera_hw.h"
 #include "kd_imgsensor.h"
@@ -50,7 +51,7 @@ static DEFINE_SPINLOCK(imgsensor_drv_lock);
 static struct imgsensor_info_struct imgsensor_info = {
 
 	/*record sensor id defined in Kd_imgsensor.h*/
-	.sensor_id = OV02A1B_SENSOR_ID,
+	.sensor_id = MONET_HLT_DEPTH_OV02A1B_SENSOR_ID,
 
 	.checksum_value = 0xb1893b4f, /*checksum value for Camera Auto Test*/
 	.pre = {
@@ -1097,6 +1098,21 @@ static void slim_video_setting(void)
 	preview_setting();
 }
 
+static kal_uint32 monet_project(void) //monet:1, monetZ:2
+{
+	kal_uint32 version_value;
+
+	version_value = get_Operator_Version();
+	if (version_value == 111 || version_value == 112
+		|| version_value == 113 || version_value == 115
+		|| version_value == 116) {
+		return 1;
+	} else if (version_value == 101 || version_value == 114) {
+		return 2;
+	}
+
+	return 0;
+}
 
 /*************************************************************************
 * FUNCTION
@@ -1125,12 +1141,17 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		spin_unlock(&imgsensor_drv_lock);
 		do {
 			write_cmos_sensor(0xfd, 0x00);
-			*sensor_id = ((read_cmos_sensor(0x0200) << 8) | read_cmos_sensor(0x0300));
+			*sensor_id = ((read_cmos_sensor(0x0200) << 8) | read_cmos_sensor(0x0300)) + 2;
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-				hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM_MOUDULE_ID, "Hlt");
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
-				return ERROR_NONE;
+				if (monet_project() == 1) {
+			//		hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM_MOUDULE_ID, "");
+					LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
+					return ERROR_NONE;
+				} else {
+					*sensor_id = 0xFFFFFFFF;
+					LOG_INF("match fail");
+					return ERROR_SENSOR_CONNECT_FAIL;
+				}
 			}
 			LOG_INF("Read sensor id fail,write_id:0x%x, id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
 			retry--;
@@ -1181,7 +1202,7 @@ static kal_uint32 open(void)
 		spin_unlock(&imgsensor_drv_lock);
 		do {
 			write_cmos_sensor(0xfd, 0x00);
-			sensor_id = ((read_cmos_sensor(0x0200) << 8) | read_cmos_sensor(0x0300));
+			sensor_id = ((read_cmos_sensor(0x0200) << 8) | read_cmos_sensor(0x0300)) + 2;
 
 			if (sensor_id == imgsensor_info.sensor_id) {
 				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, sensor_id);

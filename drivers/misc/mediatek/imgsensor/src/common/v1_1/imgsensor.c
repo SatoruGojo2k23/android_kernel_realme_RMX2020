@@ -55,10 +55,15 @@
 #if defined(CONFIG_MTK_CAM_SECURE_I2C)
 #include "imgsensor_ca.h"
 #endif
-
-#ifndef VENDOR_EDIT
-#define VENDOR_EDIT
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
 #endif
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+/*Henry.Chang@Cam.Drv, 20200727, add for allplatform*/
+#include "imgsensor_eeprom.h"
+#include "imgsensor_hwcfg_custom.h"
+#endif
+
 static DEFINE_MUTEX(gimgsensor_mutex);
 static DEFINE_MUTEX(gimgsensor_open_mutex);
 
@@ -95,62 +100,7 @@ void IMGSENSOR_PROFILE(struct timeval *ptv, char *tag)
 {
 }
 #endif
-#ifdef VENDOR_EDIT
-/* Add by LiuBin for register device info at 20160616 */
-#include <soc/oppo/device_info.h>
-#define DEVICE_MANUFACUTRE_NA		    "None"
-#define DEVICE_MANUFACUTRE_SUNNY        "Sunny"
-#define DEVICE_MANUFACUTRE_TRULY        "Truly"
-#define DEVICE_MANUFACUTRE_SEMCO        "Semco"
-#define DEVICE_MANUFACUTRE_LITEON       "Liteon"
-#define DEVICE_MANUFACUTRE_QTECH        "Qtech"
-#define DEVICE_MANUFACUTRE_OFILM        "Ofilm"
-#define DEVICE_MANUFACUTRE_SHINE        "Shine"
 
-#define IMGSENSOR_MODULE_ID_SUNNY       0x01
-#define IMGSENSOR_MODULE_ID_TRULY       0x02
-#define IMGSENSOR_MODULE_ID_SEMCO       0x03
-#define IMGSENSOR_MODULE_ID_LITEON      0x04
-#define IMGSENSOR_MODULE_ID_QTECH       0x05
-#define IMGSENSOR_MODULE_ID_OFILM       0x06
-#define IMGSENSOR_MODULE_ID_SHINE       0x07
-void register_imgsensor_deviceinfo(char *name, char *version, u8 module_id)
-{
-    char *manufacture;
-    if (name == NULL || version == NULL)
-    {
-        PK_PR_ERR("name or version is NULL");
-        return;
-    }
-    switch (module_id)
-    {
-        case IMGSENSOR_MODULE_ID_SUNNY:  /* Sunny */
-            manufacture = DEVICE_MANUFACUTRE_SUNNY;
-            break;
-        case IMGSENSOR_MODULE_ID_TRULY:  /* Truly */
-            manufacture = DEVICE_MANUFACUTRE_TRULY;
-            break;
-        case IMGSENSOR_MODULE_ID_SEMCO:  /* Semco */
-            manufacture = DEVICE_MANUFACUTRE_SEMCO;
-            break;
-        case IMGSENSOR_MODULE_ID_LITEON:  /* Lite-ON */
-            manufacture = DEVICE_MANUFACUTRE_LITEON;
-            break;
-        case IMGSENSOR_MODULE_ID_QTECH:  /* Q-Tech */
-            manufacture = DEVICE_MANUFACUTRE_QTECH;
-            break;
-        case IMGSENSOR_MODULE_ID_OFILM:  /* O-Film */
-            manufacture = DEVICE_MANUFACUTRE_OFILM;
-            break;
-        case IMGSENSOR_MODULE_ID_SHINE:  /* Shine */
-            manufacture = DEVICE_MANUFACUTRE_SHINE;
-            break;
-        default:
-            manufacture = DEVICE_MANUFACUTRE_NA;
-    }
-    register_device_proc(name, version, manufacture);
-}
-#endif
 /******************************************************************************
  * sensor function adapter
  ******************************************************************************/
@@ -178,7 +128,11 @@ static void imgsensor_mutex_lock(struct IMGSENSOR_SENSOR_INST *psensor_inst)
 	if (psensor_inst->status.arch) {
 		mutex_lock(&psensor_inst->sensor_mutex);
 	} else {
+#ifdef SENSOR_PARALLEISM
+		mutex_lock(&psensor_inst->sensor_mutex);
+#else
 		mutex_lock(&gimgsensor_mutex);
+#endif
 		imgsensor_i2c_set_device(&psensor_inst->i2c_cfg);
 	}
 #else
@@ -191,12 +145,38 @@ static void imgsensor_mutex_unlock(struct IMGSENSOR_SENSOR_INST *psensor_inst)
 #ifdef IMGSENSOR_LEGACY_COMPAT
 	if (psensor_inst->status.arch)
 		mutex_unlock(&psensor_inst->sensor_mutex);
-	else
+	else {
+#ifdef SENSOR_PARALLEISM
+		imgsensor_i2c_set_device(NULL);
+		mutex_unlock(&psensor_inst->sensor_mutex);
+#else
 		mutex_unlock(&gimgsensor_mutex);
+#endif
+	}
 #else
 	mutex_lock(&psensor_inst->sensor_mutex);
 #endif
 }
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#ifdef SENSOR_PLATFORM_MT6771
+/*weiriqin@Camera.Drv, 2019/08/20, add for wait sem to pull rst*/
+static DEFINE_MUTEX(gi2c_mutex);
+void global_i2c_mutex_lock(void)
+{
+	mutex_lock(&gi2c_mutex);
+	PK_DBG("lock gloable i2c mutex");
+}
+EXPORT_SYMBOL(global_i2c_mutex_lock);
+
+void global_i2c_mutex_unlock(void)
+{
+	mutex_unlock(&gi2c_mutex);
+	PK_DBG("unlock gloable i2c mutex");
+}
+EXPORT_SYMBOL(global_i2c_mutex_unlock);
+#endif
+#endif
 
 MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 {
@@ -207,7 +187,7 @@ MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 #endif
 	struct IMGSENSOR             *pimgsensor   = &gimgsensor;
 	struct IMGSENSOR_SENSOR_INST *psensor_inst = &psensor->inst;
-	struct SENSOR_FUNCTION_STRUCT       *psensor_func =  psensor->pfunc;
+	struct SENSOR_FUNCTION_STRUCT *psensor_func =  psensor->pfunc;
 
 #ifdef CONFIG_MTK_CCU
 	struct ccu_sensor_info ccuSensorInfo;
@@ -221,10 +201,12 @@ MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 
 		/* turn on power */
 		IMGSENSOR_PROFILE_INIT(&psensor_inst->profile_time);
+		imgsensor_mutex_lock(psensor_inst);
 
 		ret = imgsensor_hw_power(&pimgsensor->hw,
 				psensor,
 				IMGSENSOR_HW_POWER_STATUS_ON);
+		imgsensor_mutex_unlock(psensor_inst);
 
 		if (ret != IMGSENSOR_RETURN_SUCCESS) {
 			PK_PR_ERR("[%s]", __func__);
@@ -253,12 +235,17 @@ MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 #endif
 
 		if (ret != ERROR_NONE) {
+			imgsensor_hw_dump(&pimgsensor->hw);
 			imgsensor_hw_power(&pimgsensor->hw,
 				psensor,
 				IMGSENSOR_HW_POWER_STATUS_OFF);
 			PK_PR_ERR("SensorOpen fail");
 		} else {
 			psensor_inst->state = IMGSENSOR_STATE_OPEN;
+			#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			/*Henry.Chang@Cam.Drv, 20200917, add for charge status change*/
+			Oplusimgsensor_powerstate_notify(1);
+			#endif
 		}
 
 #ifdef IMGSENSOR_OC_ENABLE
@@ -268,7 +255,7 @@ MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 
 #ifdef CONFIG_MTK_CCU
 		ccuSensorInfo.slave_addr =
-		    (psensor_inst->i2c_cfg.pinst->msg->addr << 1);
+		    (psensor_inst->i2c_cfg.msg->addr << 1);
 		ccuSensorInfo.sensor_name_string =
 		    (char *)(psensor_inst->psensor_list->name);
 		pi2c_client = psensor_inst->i2c_cfg.pinst->pi2c_client;
@@ -299,7 +286,7 @@ imgsensor_sensor_get_info(
 {
 	MUINT32 ret = ERROR_NONE;
 	struct IMGSENSOR_SENSOR_INST *psensor_inst = &psensor->inst;
-	struct SENSOR_FUNCTION_STRUCT       *psensor_func =  psensor->pfunc;
+	struct SENSOR_FUNCTION_STRUCT *psensor_func =  psensor->pfunc;
 
 	IMGSENSOR_FUNCTION_ENTRY();
 
@@ -336,7 +323,7 @@ imgsensor_sensor_get_resolution(
 {
 	MUINT32 ret = ERROR_NONE;
 	struct IMGSENSOR_SENSOR_INST *psensor_inst = &psensor->inst;
-	struct SENSOR_FUNCTION_STRUCT       *psensor_func =  psensor->pfunc;
+	struct SENSOR_FUNCTION_STRUCT *psensor_func =  psensor->pfunc;
 
 	IMGSENSOR_FUNCTION_ENTRY();
 
@@ -373,7 +360,7 @@ imgsensor_sensor_feature_control(
 	struct command_params c_params;
 #endif
 	struct IMGSENSOR_SENSOR_INST  *psensor_inst = &psensor->inst;
-	struct SENSOR_FUNCTION_STRUCT        *psensor_func =  psensor->pfunc;
+	struct SENSOR_FUNCTION_STRUCT *psensor_func =  psensor->pfunc;
 
 	IMGSENSOR_FUNCTION_ENTRY();
 
@@ -424,7 +411,7 @@ imgsensor_sensor_control(
 	struct command_params c_params;
 #endif
 	struct IMGSENSOR_SENSOR_INST *psensor_inst = &psensor->inst;
-	struct SENSOR_FUNCTION_STRUCT       *psensor_func =  psensor->pfunc;
+	struct SENSOR_FUNCTION_STRUCT *psensor_func =  psensor->pfunc;
 
 	MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT image_window;
 	MSDK_SENSOR_CONFIG_STRUCT sensor_config_data;
@@ -491,6 +478,8 @@ MINT32 imgsensor_sensor_close(struct IMGSENSOR_SENSOR *psensor)
 	    psensor_func->SensorClose &&
 	    psensor_inst) {
 
+		IMGSENSOR_PROFILE_INIT(&psensor_inst->profile_time);
+
 		imgsensor_mutex_lock(psensor_inst);
 
 #ifdef IMGSENSOR_OC_ENABLE
@@ -518,9 +507,15 @@ MINT32 imgsensor_sensor_close(struct IMGSENSOR_SENSOR *psensor)
 				IMGSENSOR_HW_POWER_STATUS_OFF);
 
 			psensor_inst->state = IMGSENSOR_STATE_CLOSE;
+			#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			/*Henry.Chang@Cam.Drv, 20200917, add for charge status change*/
+			Oplusimgsensor_powerstate_notify(0);
+			#endif
 		}
 
 		imgsensor_mutex_unlock(psensor_inst);
+
+		IMGSENSOR_PROFILE(&psensor_inst->profile_time, "SensorClose");
 	}
 
 	IMGSENSOR_FUNCTION_EXIT();
@@ -530,14 +525,17 @@ MINT32 imgsensor_sensor_close(struct IMGSENSOR_SENSOR *psensor)
 
 static void imgsensor_init_sensor_list(void)
 {
-	int i = 0;
-	int ret;
+	unsigned int i = 0;
+	int ret = 0;
 	struct IMGSENSOR             *pimgsensor   = &gimgsensor;
 	struct IMGSENSOR_SENSOR_LIST *psensor_list =  gimgsensor_sensor_list;
 	const char *penable_sensor;
 	struct device_node *of_node
 		= of_find_compatible_node(NULL, NULL, "mediatek,imgsensor");
-
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	/*Henry Chang@Camera.Drv add for 20131 20200728*/
+	psensor_list = Oplusimgsensor_Sensorlist();
+	#endif
 	ret = of_property_read_string(of_node, "cust-sensor", &penable_sensor);
 	if (ret < 0) {
 		PK_DBG("Property cust-sensor not defined\n");
@@ -605,16 +603,21 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 {
 	int ret = -EIO;
-	int i = 0;
+	unsigned int i = 0;
 	struct IMGSENSOR             *pimgsensor   = &gimgsensor;
 	struct IMGSENSOR_SENSOR_INST *psensor_inst = &psensor->inst;
 
 	imgsensor_mutex_init(psensor_inst);
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	/*Henry.Chang@Cam.Drv, 20200728, add for allplatform*/
+	Oplusimgsensor_i2c_init(psensor_inst);
+	#else
 	imgsensor_i2c_init(&psensor_inst->i2c_cfg,
 		imgsensor_custom_config[psensor_inst->sensor_idx].i2c_dev);
+	#endif
 	imgsensor_i2c_filter_msg(&psensor_inst->i2c_cfg, true);
 
-	while (pimgsensor->psensor_list[i] && i < MAX_NUM_OF_SUPPORT_SENSOR) {
+	while (i < MAX_NUM_OF_SUPPORT_SENSOR && pimgsensor->psensor_list[i]) {
 		if (pimgsensor->psensor_list[i]->init) {
 			pimgsensor->psensor_list[i]->init(&psensor->pfunc);
 
@@ -700,7 +703,8 @@ EXPORT_SYMBOL(Get_Camera_Temperature);
 
 static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 {
-	int i;
+	unsigned int i = 0;
+	int ret = 0;
 	struct IMAGESENSOR_GETINFO_STRUCT *pSensorGetInfo;
 	struct IMGSENSOR_SENSOR *psensor;
 
@@ -774,22 +778,32 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 
 	/* Add info to proc: camera_info */
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nCAM[%d]:%s;",
 			psensor->inst.sensor_idx,
 			psensor->inst.psensor_list->name);
+	if (ret < 0)
+		return ret;
 
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nSensor ID = %x;",
 			psensor->inst.psensor_list->id);
+	if (ret < 0)
+		return ret;
 
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nPre: TgGrab_w,h,x_,y=%5d,%5d,%3d,%3d, delay_frm=%2d",
@@ -798,9 +812,13 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 			info.SensorGrabStartX_PRV,
 			info.SensorGrabStartY_PRV,
 			info.PreviewDelayFrame);
+	if (ret < 0)
+		return ret;
 
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nCap: TgGrab_w,h,x_,y=%5d,%5d,%3d,%3d, delay_frm=%2d",
@@ -809,9 +827,13 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 			info.SensorGrabStartX_CAP,
 			info.SensorGrabStartY_CAP,
 			info.CaptureDelayFrame);
+	if (ret < 0)
+		return ret;
 
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nVid: TgGrab_w,h,x_,y=%5d,%5d,%3d,%3d, delay_frm=%2d",
@@ -820,9 +842,13 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 			info.SensorGrabStartX_VD,
 			info.SensorGrabStartY_VD,
 			info.VideoDelayFrame);
+	if (ret < 0)
+		return ret;
 
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nHSV: TgGrab_w,h,x_,y=%5d,%5d,%3d,%3d, delay_frm=%2d",
@@ -831,9 +857,13 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 			info.SensorGrabStartX_VD1,
 			info.SensorGrabStartY_VD1,
 			info.HighSpeedVideoDelayFrame);
+	if (ret < 0)
+		return ret;
 
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nSLV: TgGrab_w,h,x_,y=%5d,%5d,%3d,%3d, delay_frm=%2d",
@@ -842,37 +872,55 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 			info.SensorGrabStartX_VD2,
 			info.SensorGrabStartY_VD2,
 			info.SlimVideoDelayFrame);
+	if (ret < 0)
+		return ret;
 
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nSeninf_Type(0:parallel,1:mipi,2:serial)=%d, output_format(0:B,1:Gb,2:Gr,3:R)=%2d",
 			info.SensroInterfaceType,
 			info.SensorOutputDataFormat);
+	if (ret < 0)
+		return ret;
 
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nDriving_Current(0:2mA,1:4mA,2:6mA,3:8mA)=%d, mclk_freq=%2d, mipi_lane=%d",
 			info.SensorDrivingCurrent,
 			info.SensorClockFreq,
 			info.SensorMIPILaneNumber + 1);
+	if (ret < 0)
+		return ret;
 
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nPDAF_Support(0:No PD,1:PD RAW,2:VC(Full),3:VC(Bin),4:Dual Raw,5:Dual VC=%2d",
 			info.PDAF_Support);
+	if (ret < 0)
+		return ret;
 
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
-	snprintf(
+	if (pmtk_ccm_name == NULL)
+		return -EFAULT;
+	ret = snprintf(
 			pmtk_ccm_name,
 			camera_info_size - (int)(pmtk_ccm_name - mtk_ccm_name),
 			"\nHDR_Support(0:NO HDR,1: iHDR,2:mvHDR,3:zHDR)=%2d",
 			info.HDR_Support);
+	if (ret < 0)
+		return ret;
 
 	/* Resolution */
 	if (copy_to_user((void __user *)(pSensorGetInfo->pSensorResolution),
@@ -981,6 +1029,23 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 
 	/*in case that some structure are passed from user sapce by ptr */
 	switch (pFeatureCtrl->FeatureId) {
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	/*Henry.Chang@camera.driver 20181129, add for sensor Module SET*/
+	case SENSOR_FEATURE_SET_SENSOR_OTP:
+		ret = imgsensor_sensor_feature_control(psensor,
+					pFeatureCtrl->FeatureId,
+					(unsigned char *)pFeaturePara,
+					(unsigned int *)&FeatureParaLen);
+		break;
+	case SENSOR_FEATURE_GET_EEPROM_COMDATA:
+	case SENSOR_FEATURE_GET_EEPROM_STEREODATA:
+	{
+		enum IMGSENSOR_SENSOR_IDX sensor_idx = psensor->inst.sensor_idx;
+		ret = Eeprom_Control(sensor_idx, pFeatureCtrl->FeatureId,
+						(unsigned char *)pFeaturePara, 0);
+		break;
+	}
+	#endif
 	case SENSOR_FEATURE_SET_MCLK_DRIVE_CURRENT:
 	{
 		MUINT32 __current = (*(MUINT32 *)pFeaturePara);
@@ -1084,6 +1149,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_SENSOR_PDAF_CAPACITY:
 	case SENSOR_FEATURE_GET_SENSOR_HDR_CAPACITY:
 	case SENSOR_FEATURE_GET_MIPI_PIXEL_RATE:
+	case SENSOR_FEATURE_GET_AWB_REQ_BY_SCENARIO:
 		{
 			MUINT32 *pValue = NULL;
 			unsigned long long *pFeaturePara_64 =
@@ -1301,13 +1367,15 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 			void *usr_ptr =
 				(void *)(uintptr_t) (*(pFeaturePara_64 + 1));
 
-			pPdInfo = kmalloc(sizeof(struct SET_PD_BLOCK_INFO_T), GFP_KERNEL);
+			pPdInfo = kmalloc(sizeof(struct SET_PD_BLOCK_INFO_T),
+					GFP_KERNEL);
 			if (pPdInfo == NULL) {
 				kfree(pFeaturePara);
 				PK_PR_ERR(" ioctl allocate mem failed\n");
 				return -ENOMEM;
 			}
-			memset(pPdInfo, 0x0, sizeof(struct SET_PD_BLOCK_INFO_T));
+			memset(pPdInfo, 0x0,
+				sizeof(struct SET_PD_BLOCK_INFO_T));
 			*(pFeaturePara_64 + 1) = (uintptr_t) pPdInfo;
 
 			ret = imgsensor_sensor_feature_control(psensor,
@@ -1316,7 +1384,8 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 					(unsigned int *)&FeatureParaLen);
 
 			if (copy_to_user((void __user *)usr_ptr,
-					 (void *)pPdInfo, sizeof(struct SET_PD_BLOCK_INFO_T))) {
+					(void *)pPdInfo,
+					sizeof(struct SET_PD_BLOCK_INFO_T))) {
 
 				PK_DBG("[CAMERA_HW]ERROR: copy_to_user fail\n");
 			}
@@ -1561,9 +1630,100 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 
 		}
 		break;
+	case SENSOR_FEATURE_GET_ANA_GAIN_TABLE:
+		{
+#define GAIN_TBL_SIZE 4096
 
+			char *pGain_tbl = NULL;
+			unsigned long long *pFeaturePara_64 =
+				(unsigned long long *)pFeaturePara;
+
+			kal_uint32 buf_sz =
+					(kal_uint32) (*(pFeaturePara_64));
+			void *usr_ptr =
+				(void *)(uintptr_t) (*(pFeaturePara_64 + 1));
+			if (buf_sz == 0 || usr_ptr == NULL) {
+				ret = imgsensor_sensor_feature_control(psensor,
+					pFeatureCtrl->FeatureId,
+					(unsigned char *)pFeaturePara,
+					(unsigned int *)&FeatureParaLen);
+			} else {
+				if (buf_sz > GAIN_TBL_SIZE) {
+					kfree(pFeaturePara);
+					PK_PR_ERR(
+					"gain tbl size (%u) can't larger than %d bytes\n",
+					buf_sz, GAIN_TBL_SIZE);
+					return -EINVAL;
+				}
+				pGain_tbl = kmalloc(
+				sizeof(char) * buf_sz, GFP_KERNEL);
+				if (pGain_tbl == NULL) {
+					kfree(pFeaturePara);
+					PK_PR_ERR(
+						"ioctl allocate mem failed\n");
+					return -ENOMEM;
+				}
+				memset(pGain_tbl, 0x0, sizeof(char) * buf_sz);
+				if (pFeaturePara_64 != NULL) {
+					*(pFeaturePara_64 + 1)
+						= (uintptr_t) pGain_tbl;
+				}
+				ret = imgsensor_sensor_feature_control(psensor,
+					pFeatureCtrl->FeatureId,
+					(unsigned char *)pFeaturePara,
+					(unsigned int *)&FeatureParaLen);
+
+				if (copy_to_user((void __user *)usr_ptr,
+						 (void *)pGain_tbl, buf_sz)) {
+					PK_DBG("copy_to_user fail\n");
+				}
+				kfree(pGain_tbl);
+				*(pFeaturePara_64 + 1) = (uintptr_t) usr_ptr;
+			}
+		}
+		break;
+	case SENSOR_FEATURE_GET_SEAMLESS_SCENARIOS:
+	case SENSOR_FEATURE_SEAMLESS_SWITCH:
+		{
+#define _DATA_SIZE 64
+			char *p_data = NULL;
+			unsigned long long *pFeaturePara_64 =
+				(unsigned long long *)pFeaturePara;
+			void *usr_ptr =
+				(void *)(uintptr_t) (*(pFeaturePara_64 + 1));
+
+			p_data = kmalloc(
+				sizeof(char) * _DATA_SIZE, GFP_KERNEL);
+			if (p_data == NULL) {
+				kfree(pFeaturePara);
+				PK_DBG(" ioctl allocate mem failed\n");
+				return -ENOMEM;
+			}
+			if (copy_from_user((void *)p_data,
+				(void __user *)usr_ptr, _DATA_SIZE)) {
+				kfree(pFeaturePara);
+				kfree(p_data);
+				PK_DBG("[CAMERA_HW]ERROR: copy_from_user fail\n");
+				return -ENOMEM;
+			}
+
+			if (pFeaturePara_64 != NULL)
+				*(pFeaturePara_64 + 1) = (uintptr_t) p_data;
+
+			ret = imgsensor_sensor_feature_control(psensor,
+					pFeatureCtrl->FeatureId,
+					(unsigned char *)pFeaturePara,
+					(unsigned int *)&FeatureParaLen);
+
+			if (copy_to_user((void __user *)usr_ptr,
+					 (void *)p_data, _DATA_SIZE)) {
+				PK_DBG("[CAMERA_HW]ERROR: copy_to_user fail\n");
+			}
+			kfree(p_data);
+			*(pFeaturePara_64 + 1) = (uintptr_t) usr_ptr;
+		}
+		break;
 	case SENSOR_FEATURE_GET_PDAF_DATA:
-	case SENSOR_FEATURE_GET_4CELL_DATA:
 		{
 #define PDAF_DATA_SIZE 4096
 			char *pPdaf_data = NULL;
@@ -1606,6 +1766,52 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 				PK_DBG("[CAMERA_HW]ERROR: copy_to_user fail\n");
 			}
 			kfree(pPdaf_data);
+			*(pFeaturePara_64 + 1) = (uintptr_t) usr_ptr;
+		}
+		break;
+	/* Shipei.Chen@Cam.Drv, 20201219, modify for gw3 64M remosaic Rotatemirror! */
+	case SENSOR_FEATURE_GET_4CELL_DATA:
+		{
+#define FCELL_DATA_SIZE 8192
+			char *p4cell_data = NULL;
+			unsigned long long *pFeaturePara_64 =
+				(unsigned long long *)pFeaturePara;
+			void *usr_ptr =
+				(void *)(uintptr_t) (*(pFeaturePara_64 + 1));
+			kal_uint32 buf_sz =
+				(kal_uint32) (*(pFeaturePara_64 + 2));
+
+			/* buffer size exam */
+			if (buf_sz > FCELL_DATA_SIZE) {
+				kfree(pFeaturePara);
+				PK_PR_ERR(
+				"buffer size (%u) can't larger than %d bytes\n",
+					  buf_sz, FCELL_DATA_SIZE);
+				return -EINVAL;
+			}
+
+			p4cell_data = kmalloc(
+				sizeof(char) * FCELL_DATA_SIZE, GFP_KERNEL);
+			if (p4cell_data == NULL) {
+				kfree(pFeaturePara);
+				PK_PR_ERR(" ioctl allocate mem failed\n");
+				return -ENOMEM;
+			}
+			memset(p4cell_data, 0xff, sizeof(char) * FCELL_DATA_SIZE);
+
+			if (pFeaturePara_64 != NULL)
+				*(pFeaturePara_64 + 1) = (uintptr_t) p4cell_data;
+
+			ret = imgsensor_sensor_feature_control(psensor,
+					pFeatureCtrl->FeatureId,
+					(unsigned char *)pFeaturePara,
+					(unsigned int *)&FeatureParaLen);
+
+			if (copy_to_user((void __user *)usr_ptr,
+					 (void *)p4cell_data, buf_sz)) {
+				PK_DBG("[CAMERA_HW]ERROR: copy_to_user fail\n");
+			}
+			kfree(p4cell_data);
 			*(pFeaturePara_64 + 1) = (uintptr_t) usr_ptr;
 		}
 		break;
@@ -2096,6 +2302,7 @@ static int imgsensor_probe(struct platform_device *pplatform_device)
 
 	phw->common.pplatform_device = pplatform_device;
 
+	oplus_imgsensor_hwcfg();
 	imgsensor_hw_init(phw);
 	imgsensor_i2c_create();
 	imgsensor_proc_init();
@@ -2171,7 +2378,11 @@ static void __exit imgsensor_exit(void)
 {
 	platform_driver_unregister(&gimgsensor_platform_driver);
 }
-module_init(imgsensor_init);
+#ifdef NEED_LATE_INITCALL
+	late_initcall(imgsensor_init);
+#else
+	module_init(imgsensor_init);
+#endif
 module_exit(imgsensor_exit);
 
 MODULE_DESCRIPTION("image sensor driver");

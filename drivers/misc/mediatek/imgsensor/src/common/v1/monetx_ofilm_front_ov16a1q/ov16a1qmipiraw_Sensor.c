@@ -57,7 +57,7 @@
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
 static struct imgsensor_info_struct imgsensor_info = {
-	.sensor_id = OV16A1Q_SENSOR_ID,		/*record sensor id defined in Kd_imgsensor.h*/
+	.sensor_id = MONETX_OFILM_FRONT_OV16A1Q_SENSOR_ID,		/*record sensor id defined in Kd_imgsensor.h*/
 	.checksum_value = 0xb1893b4f,		/*checksum value for Camera Auto Test*/
 	.pre = {
 		.pclk = 100000000,				/*record different mode's pclk*/
@@ -170,6 +170,18 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.max_framerate = 300,
 		.mipi_pixel_rate = 580800000,
 	},
+	.custom4 = {
+		.pclk = 100000000,				/*record different mode's pclk*/
+		.linelength  = 1700,			/*record different mode's linelength*/
+		.framelength = 1960,			/*record different mode's framelength*/
+		.startx = 0,					/*record different mode's startx of grabwindow*/
+		.starty = 0,					/*record different mode's starty of grabwindow*/
+		.grabwindow_width  = 2320,		/*record different mode's width of grabwindow*/
+		.grabwindow_height = 1744,		/*record different mode's height of grabwindow*/
+		.mipi_data_lp2hs_settle_dc = 19,	//19,23,65,85,120 若点亮后有数据可以尝试修改这个值，此四个值为推荐修改值
+		.max_framerate = 300,
+		.mipi_pixel_rate = 302400000,
+	},
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
 	.margin = 8,			/*sensor framelength & shutter margin*/
 	.min_shutter = 8,		/*min shutter*/
@@ -180,13 +192,14 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.ihdr_support = 0,	  /*1, support; 0,not support*/
 	.ihdr_le_firstline = 0,  /*1,le first ; 0, se first*/
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic */
-	.sensor_mode_num = 8,	  /*support sensor mode num ,don't support Slow motion*/
+	.sensor_mode_num = 9,	  /*support sensor mode num ,don't support Slow motion*/
 	.cap_delay_frame = 3,		/*enter capture delay frame num*/
 	.pre_delay_frame = 3,		/*enter preview delay frame num*/
 	.video_delay_frame = 3,		/*enter video delay frame num*/
 	.hs_video_delay_frame = 3,	/*enter high speed video  delay frame num*/
 	.slim_video_delay_frame = 3,/*enter slim video delay frame num*/
 	.custom3_delay_frame = 3, /* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic */
+	.custom4_delay_frame = 3,
 	/*Duilin.Qin@ODM_WT.Camera.Driver.493476, 2019/10/21, modify mclk driving current */
 	.isp_driving_current = ISP_DRIVING_2MA, /*mclk driving current*/
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,/*Sensor_interface_type*/
@@ -225,6 +238,7 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[10] = {
 { 4656, 3496, 0, 0, 4656, 3496, 2328, 1748,  0, 0,  2328, 1748, 0, 0, 2328, 1748 },/*hs-video*/
 { 4656, 3496, 0, 0, 4656, 3496, 2328, 1748,  0, 0,  2328, 1748, 0, 0, 2328, 1748 },/*slim-video*/
 { 4656, 3496, 0, 0, 4656, 3496, 4656, 3496,  0, 0,  4656, 3496, 0, 0, 4656, 3496 }, //custom3
+{ 4656, 3496, 8, 4, 4640, 3488, 2320, 1744,  0, 0,  2320, 1744, 0, 0, 2320, 1744 }, //custom4
 };
 
 #define SET_STREAMING_TEST 0
@@ -1792,6 +1806,118 @@ static void custom3_setting(void)
 	write_cmos_sensor(0x0100, 0x01);
 #endif
 }
+
+kal_uint16 addr_data_pair_custom4_ov16a1q[] = {
+	0x0305,0x7a,
+	0x0307,0x01,
+	0x4837,0x15,
+	0x0329,0x01,
+	0x0344,0x01,
+	0x0345,0x2c,
+	0x034a,0x07,
+	0x3608,0x75,
+	0x360a,0x69,
+	0x361a,0x8b,
+	0x361e,0x30,
+	0x3639,0xa6,
+	0x363a,0xaa,
+	0x3642,0xa8,
+	0x3654,0x8a,
+	0x3656,0x0c,
+	0x3663,0x01,
+	0x370e,0xa5,
+	0x3712,0x59,
+	0x3713,0x40,
+	0x3714,0xe4,
+	0x37d0,0x02,
+	0x37d1,0x10,
+	0x37db,0x04,
+	0x3808,0x09,
+	0x3809,0x18,
+	0x380a,0x06,
+	0x380b,0xd4,/*improve the normal luminance differences new add for set back to default*/
+	0x380c,0x06, //0x03,/*Zhen.Quan@Camera.Driver, 2019/11/14, modify setting for oppo engineer preview*/
+	0x380d,0xa4, //0x52,
+	0x380e,0x07, //0x0f,
+	0x380f,0xa8, //0x50,
+	0x3814,0x11,
+	0x3815,0x22,
+	0x3820,0x01,
+	0x3821,0x06,
+	0x3822,0x01,
+	0x383c,0x22,
+	0x383f,0x33,
+	0x4015,0x02,
+	0x4016,0x0d,
+	0x4017,0x00,
+	0x4018,0x07,
+	0x401b,0x1f,
+	0x401f,0x38,
+	0x4500,0x20,
+	0x4501,0x6f,
+	0x4502,0xe4,
+	0x4e05,0x04,
+	0x4e11,0x06,
+	0x4e1d,0x30,
+	0x4e26,0x39,
+	0x4e29,0x6d,
+	0x5000,0x29,
+	0x5001,0xc2,
+	0x5003,0xc2,
+	0x5820,0xc0,
+	0x5854,0x01,
+	0x5bd0,0x19,
+	0x5c0e,0x11,
+	0x5c11,0x01,
+	0x5c16,0x02,
+	0x5c17,0x00,
+	0x5c1a,0x00,
+	0x5c1b,0x00,
+	0x5c21,0x10,
+	0x5c22,0x08,
+	0x5c23,0x04,
+	0x5c24,0x0c,
+	0x5c25,0x04,
+	0x5c26,0x0c,
+	0x5c27,0x02,
+	0x5c28,0x06,
+	0x5c29,0x02,
+	0x5c2a,0x06,
+	0x5c2b,0x01,
+	0x5c2c,0x00,
+	0x5d01,0x07,
+	0x5d08,0x08,
+	0x5d09,0x08,
+	0x5d0a,0x02,
+	0x5d0b,0x06,
+	0x5d0c,0x02,
+	0x5d0d,0x06,
+	0x5d0e,0x02,
+	0x5d0f,0x06,
+	0x5d10,0x02,
+	0x5d11,0x06,
+	0x5d12,0x00,
+	0x5d13,0x00,
+	0x3500,0x00,
+	0x3501,0x0f,
+	0x3502,0x48,
+	0x3508,0x01,
+	0x3509,0x00,
+};
+static void custom4_setting(void)
+{
+	LOG_INF("E\n");
+#if SET_STREAMING_TEST
+		//write_cmos_sensor(0x0100, 0x00);
+#endif
+	ov16a1q_table_write_cmos_sensor(addr_data_pair_custom4_ov16a1q,
+				   sizeof(addr_data_pair_custom4_ov16a1q) / sizeof(kal_uint16));
+
+#if SET_STREAMING_TEST
+		//write_cmos_sensor(0x0100, 0x01);
+#endif
+}	/*	custom4_setting  */
+
 /* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
 
 /*************************************************************************
@@ -1823,12 +1949,12 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 			*sensor_id = ((read_cmos_sensor(0x300B) << 8) | read_cmos_sensor(0x300C));
 			if (*sensor_id == imgsensor_info.sensor_id) {
 				/* Zhen.Quan@Camera.Driver, 2019/10/17, add for [otp bringup] */
-#if ENABLE_OV16A1Q_OTP
+#if 1
 				if(!check_otp_data(&monetx_ofilm_front_ov16a1q_eeprom_data, monetx_ofilm_front_ov16a1q_checksum, sensor_id)){
 					break;
 				} else {
 					/*xiaojun.Pu@Camera.Driver, 2019/10/18, add for [add hardware_info for factory]*/
-					hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "Ofilm");
+					//hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "Ofilm");
 				}
 #endif
 				printk("i2c write id: 0x%x, sensor id: 0x%x, ver = 0x%x<0xB1=r2a,0xB0=r1a>\n",
@@ -2129,6 +2255,26 @@ static kal_uint32 custom3(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	return ERROR_NONE;
 }	/* custom3() */
 /* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
+static kal_uint32 custom4(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
+					  MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
+{
+	LOG_INF("E\n");
+	spin_lock(&imgsensor_drv_lock);
+	imgsensor.sensor_mode = IMGSENSOR_MODE_CUSTOM4;
+	imgsensor.pclk = imgsensor_info.custom4.pclk;
+	/*imgsensor.video_mode = KAL_FALSE;*/
+	imgsensor.line_length = imgsensor_info.custom4.linelength;
+	imgsensor.frame_length = imgsensor_info.custom4.framelength;
+	imgsensor.min_frame_length = imgsensor_info.custom4.framelength;
+	imgsensor.autoflicker_en = KAL_FALSE;
+	spin_unlock(&imgsensor_drv_lock);
+	custom4_setting();
+	//set_mirror_flip(imgsensor.mirror);
+	//mdelay(10);
+	return ERROR_NONE;
+}	/*	custom4   */
+
+
 
 static kal_uint32 get_resolution(MSDK_SENSOR_RESOLUTION_INFO_STRUCT *sensor_resolution)
 {
@@ -2147,6 +2293,8 @@ static kal_uint32 get_resolution(MSDK_SENSOR_RESOLUTION_INFO_STRUCT *sensor_reso
 	sensor_resolution->SensorCustom3Width = imgsensor_info.custom3.grabwindow_width;
 	sensor_resolution->SensorCustom3Height = imgsensor_info.custom3.grabwindow_height;
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
+	sensor_resolution->SensorCustom4Width = imgsensor_info.custom4.grabwindow_width;
+	sensor_resolution->SensorCustom4Height = imgsensor_info.custom4.grabwindow_height;
 	return ERROR_NONE;
 }	/*	get_resolution	*/
 
@@ -2174,6 +2322,7 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 	sensor_info->SlimVideoDelayFrame = imgsensor_info.slim_video_delay_frame;
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic */
 	sensor_info->Custom3DelayFrame = imgsensor_info.custom3_delay_frame;
+	sensor_info->Custom4DelayFrame = imgsensor_info.custom4_delay_frame;
 	sensor_info->SensorMasterClockSwitch = 0; /* not use */
 	sensor_info->SensorDrivingCurrent = imgsensor_info.isp_driving_current;
 	sensor_info->AEShutDelayFrame = imgsensor_info.ae_shut_delay_frame;
@@ -2238,6 +2387,12 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 				imgsensor_info.custom3.mipi_data_lp2hs_settle_dc;
 			break;
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
+	case MSDK_SCENARIO_ID_CUSTOM4:
+			sensor_info->SensorGrabStartX = imgsensor_info.custom4.startx;
+			sensor_info->SensorGrabStartY = imgsensor_info.custom4.starty;
+			sensor_info->MIPIDataLowPwr2HighSpeedSettleDelayCount =
+				imgsensor_info.custom4.mipi_data_lp2hs_settle_dc;
+			break;
 	default:
 			sensor_info->SensorGrabStartX = imgsensor_info.pre.startx;
 			sensor_info->SensorGrabStartY = imgsensor_info.pre.starty;
@@ -2278,6 +2433,9 @@ static kal_uint32 control(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 			custom3(image_window, sensor_config_data);
 			break;
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
+	case MSDK_SCENARIO_ID_CUSTOM4:
+			custom4(image_window, sensor_config_data);
+			break;
 	default:
 			LOG_INF("Error ScenarioId setting");
 			preview(image_window, sensor_config_data);
@@ -2401,6 +2559,17 @@ static kal_uint32 set_max_framerate_by_scenario(
 			spin_unlock(&imgsensor_drv_lock);
 			break;
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
+	case MSDK_SCENARIO_ID_CUSTOM4:
+			frame_length = imgsensor_info.custom4.pclk / framerate * 10 / imgsensor_info.custom4.linelength;
+			spin_lock(&imgsensor_drv_lock);
+			if (frame_length > imgsensor_info.custom4.framelength)
+				imgsensor.dummy_line = (frame_length - imgsensor_info.custom4.framelength);
+			else
+				imgsensor.dummy_line = 0;
+			imgsensor.frame_length = imgsensor_info.custom4.framelength + imgsensor.dummy_line;
+			imgsensor.min_frame_length = imgsensor.frame_length;
+			spin_unlock(&imgsensor_drv_lock);
+			break;
 	default:  /*coding with  preview scenario by default*/
 			frame_length = imgsensor_info.pre.pclk / framerate * 10 / imgsensor_info.pre.linelength;
 			spin_lock(&imgsensor_drv_lock);
@@ -2443,6 +2612,9 @@ static kal_uint32 get_default_framerate_by_scenario(
 			*framerate = imgsensor_info.custom3.max_framerate;
 			break;
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
+	case MSDK_SCENARIO_ID_CUSTOM4:
+		*framerate = imgsensor_info.custom4.max_framerate;
+		break;
 	default:
 			break;
 	}
@@ -2510,7 +2682,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	struct SENSOR_WINSIZE_INFO_STRUCT *wininfo;
 	MSDK_SENSOR_REG_INFO_STRUCT *sensor_reg_data = (MSDK_SENSOR_REG_INFO_STRUCT *) feature_para;
         /*Yang.Guo@Camera.Driver , 20200224, add for ITS--sensor_fusion*/
-        MUINT32 offset1 = 0;
+//        MUINT32 offset1 = 0;
 
 	LOG_INF("feature_id = %d\n", feature_id);
 	switch (feature_id) {
@@ -2540,6 +2712,10 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
 				= imgsensor_info.custom3.pclk;
 			break;
+		case MSDK_SCENARIO_ID_CUSTOM4:
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
+				= imgsensor_info.custom4.pclk;
+			break;
 		case MSDK_SCENARIO_ID_SLIM_VIDEO:
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
 				= imgsensor_info.slim_video.pclk;
@@ -2552,12 +2728,12 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		}
 		break;
         /*Yang.Guo@Camera.Driver , 20200224, add for ITS--sensor_fusion start*/
-        case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
+        /*case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
 			LOG_INF("Front SENOSR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE\n");
 			offset1 = 1730000;
 			LOG_INF("Front offset1=%d, offset1=0x%x \n", offset1, offset1);
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = offset1;
-               break;
+               break;*/
         /*Yang.Guo@Camera.Driver , 20200224, add for ITS--sensor_fusion end*/
 	case SENSOR_FEATURE_GET_PERIOD_BY_SCENARIO:
 		switch (*feature_data) {
@@ -2595,6 +2771,11 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
 			= (imgsensor_info.custom3.framelength << 16)
 				+ imgsensor_info.custom3.linelength;
+			break;
+		case MSDK_SCENARIO_ID_CUSTOM4:
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
+			= (imgsensor_info.custom4.framelength << 16)
+				+ imgsensor_info.custom4.linelength;
 			break;
 		case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
 		default:
@@ -2708,6 +2889,11 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 				sizeof(struct  SENSOR_WINSIZE_INFO_STRUCT));
 		break;
 		/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
+		case MSDK_SCENARIO_ID_CUSTOM4:
+			memcpy((void *)wininfo,
+				(void *)&imgsensor_winsize_info[6],
+				sizeof(struct  SENSOR_WINSIZE_INFO_STRUCT));
+		break;
 		case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
 		default:
 			memcpy((void *)wininfo,
@@ -2765,6 +2951,10 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
 				= imgsensor_info.custom3.mipi_pixel_rate;
 			break;
+		case MSDK_SCENARIO_ID_CUSTOM4:
+			*(MUINT32 *)(uintptr_t)(*(feature_data + 1))
+				= imgsensor_info.custom3.mipi_pixel_rate;
+			break;
 		case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
 		default:
 			/*Tian.Tian@ODM_WT.CAMERA.Hal 2678995 on 2020/02/24, modify for cts testMultiCameraRelease*/
@@ -2799,8 +2989,8 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 				memcpy(data + 2,databuffer + 0xF00,1920);
 				LOG_INF("read DPC Talk calibration data size= %d %d %d %d,%d,,%d\n",
 					data[0],data[1],data[2], data[3],data[4],data[5]);
-				}
 			}
+		}
 		break;
 	}
 	/* Tian.Tian@Camera.Driver, 2019/11/10, add for remosaic end */
@@ -2822,7 +3012,7 @@ static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 };
 
 
-UINT32 OV16A1Q_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)
+UINT32 MONETX_OFILM_FRONT_OV16A1Q_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)
 {
 	/* To Do : Check Sensor status here */
 	if (pfFunc != NULL)

@@ -410,8 +410,8 @@ static kal_uint16 set_gain(kal_uint16 gain)
 		write_cmos_sensor(0xb2, (temp << 2) & 0xfc);
 		cam_pr_debug("analogic gain 5.68x, add pregain = %d\n", temp);
 	} else if ((iReg >= ANALOG_GAIN_7) && (iReg < ANALOG_GAIN_8)) {
-		write_cmos_sensor(0x20, 0x0c);
-		write_cmos_sensor(0x22, 0x0c);
+		write_cmos_sensor(0x20, 0x0e);/* 0x0c->0x0e desense jeremy 20191212*/
+		write_cmos_sensor(0x22, 0x0e);/* 0x0c->0x0e desense jeremy 20191212*/
 		write_cmos_sensor(0x26, 0x0e);
 		/* analog gain */
 		write_cmos_sensor(0xb6, 0x06);
@@ -694,10 +694,10 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
 	/*Quanzhen@ODM_WT.Camera.Driver, 2019/11/4,camera distinction snesor */
-	if (!check_board_id(board_monetx)){
-		*sensor_id = 0xFFFFFFFF;
-		return ERROR_SENSOR_CONNECT_FAIL;
-	}
+//	if (!check_board_id(board_monetx)){
+//		*sensor_id = 0xFFFFFFFF;
+//		return ERROR_SENSOR_CONNECT_FAIL;
+//	}
 
 	while (imgsensor_info.i2c_addr_table[i] != 0xff) {
 		spin_lock(&imgsensor_drv_lock);
@@ -707,12 +707,12 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 			*sensor_id = return_sensor_id();
 			if (*sensor_id == imgsensor_info.sensor_id) {
 				/* Zhen.Quan@Camera.Driver, 2019/10/17, add for [otp bringup] */
-#if ENABLE_GC2375H_HLT_OTP
+#if 1
 				if(!check_otp_data(&monetx_hlt_macro_gc2375h_eeprom_data, monetx_hlt_macro_gc2375h_checksum, sensor_id)){
 					break;
 				} else {
 					/*xiaojun.Pu@Camera.Driver, 2019/10/15, add for [add hardware_info for factory]*/
-					hardwareinfo_set_prop(HARDWARE_MONO_CAM_MOUDULE_ID, "Hlt");
+					//hardwareinfo_set_prop(HARDWARE_MONO_CAM_MOUDULE_ID, "Hlt");
 				}
 #endif
 				cam_pr_debug("i2c write id: 0x%x, sensor id: 0x%x\n",

@@ -19,10 +19,15 @@
 
 #include "imgsensor_sensor.h"
 #include "imgsensor_hw.h"
-
 #ifndef VENDOR_EDIT
 #define VENDOR_EDIT
 #endif
+#ifdef VENDOR_EDIT
+/*Henry.Chang@Cam.Drv, 20200727, add for allplatform*/
+#include "imgsensor_eeprom.h"
+#include "imgsensor_hwcfg_custom.h"
+#endif
+
 enum IMGSENSOR_RETURN imgsensor_hw_init(struct IMGSENSOR_HW *phw)
 {
 	struct IMGSENSOR_HW_SENSOR_POWER      *psensor_pwr;
@@ -47,7 +52,12 @@ enum IMGSENSOR_RETURN imgsensor_hw_init(struct IMGSENSOR_HW *phw)
 	for (i = 0; i < IMGSENSOR_SENSOR_IDX_MAX_NUM; i++) {
 		psensor_pwr = &phw->sensor_pwr[i];
 
+		#ifdef VENDOR_EDIT
+		/*Henry.Chang@Cam.Drv, 20200728, add for allplatfrom customconfig*/
+		pcust_pwr_cfg = Oplusimgsensor_Custom_Config();
+		#else
 		pcust_pwr_cfg = imgsensor_custom_config;
+		#endif
 		while (pcust_pwr_cfg->sensor_idx != i &&
 		       pcust_pwr_cfg->sensor_idx != IMGSENSOR_SENSOR_IDX_NONE)
 			pcust_pwr_cfg++;
@@ -97,6 +107,24 @@ enum IMGSENSOR_RETURN imgsensor_hw_release_all(struct IMGSENSOR_HW *phw)
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#ifdef SENSOR_PLATFORM_MT6771
+/*weiriqin@Camera.Drv, 20190820, add for pull-up gc02's avdd when main sensor is powered*/
+static bool g_is_sub2_gc02m0 = false;
+static bool g_is_main3_gc02m0 = false;
+void set_gc02m0_flag(enum IMGSENSOR_SENSOR_IDX sensor_idx)
+{
+    if (sensor_idx == IMGSENSOR_SENSOR_IDX_SUB2)
+        g_is_sub2_gc02m0 = true;
+    else if (sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN3)
+        g_is_main3_gc02m0 = true;
+}
+/*weiriqin@Camera.Drv, 2019/08/20, add for wait sem to pull rst*/
+extern void global_i2c_mutex_lock(void);
+extern void global_i2c_mutex_unlock(void);
+#endif
+#endif
+
 static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 		struct IMGSENSOR_HW             *phw,
 		enum   IMGSENSOR_SENSOR_IDX      sensor_idx,
@@ -138,24 +166,53 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 	ppwr_info = ppwr_seq->pwr_info;
 
 	while (ppwr_info->pin != IMGSENSOR_HW_PIN_NONE &&
-	       ppwr_info < ppwr_seq->pwr_info + IMGSENSOR_HW_POWER_INFO_MAX) {
-
+		ppwr_info < ppwr_seq->pwr_info + IMGSENSOR_HW_POWER_INFO_MAX) {
 		if (pwr_status == IMGSENSOR_HW_POWER_STATUS_ON) {
 			if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
-				pdev =
-				phw->pdev[psensor_pwr->id[ppwr_info->pin]];
+				#ifdef VENDOR_EDIT
+				/*Henry.Chang@Cam.Drv, 20200728, add for allplatfrom customconfig*/
+				if (Oplusimgsensor_ldo_powerset(sensor_idx, ppwr_info->pin, pwr_status)
+						== IMGSENSOR_RETURN_ERROR) {
+				#endif
+					pdev =
+					phw->pdev[psensor_pwr->id[ppwr_info->pin]];
 
-				if (__ratelimit(&ratelimit))
-					PK_DBG(
-					"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d",
-					sensor_idx,
-					ppwr_info->pin,
-					ppwr_info->pin_state_on);
-
-				if (pdev->set != NULL)
-					pdev->set(pdev->pinstance,
-					sensor_idx,
-				    ppwr_info->pin, ppwr_info->pin_state_on);
+					if (__ratelimit(&ratelimit))
+						pr_info(
+						"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d, delay %u",
+						sensor_idx,
+						ppwr_info->pin,
+						ppwr_info->pin_state_on,
+						ppwr_info->pin_on_delay);
+					#ifdef OPLUS_FEATURE_CAMERA_COMMON
+					#ifdef SENSOR_PLATFORM_MT6771
+					/*weiriqin@Camera.Drv, 2019/08/20, add for wait sem to pull rst*/
+					if (pdev->set != NULL) {
+						if(is_project(19531) || is_project(19151) || is_project(19350)) {
+							if ((sensor_idx == IMGSENSOR_SENSOR_IDX_SUB) && (ppwr_info->pin == IMGSENSOR_HW_PIN_RST) && (ppwr_info->pin_state_on == Vol_High)) {
+								global_i2c_mutex_lock();
+								mdelay(5);
+								pdev->set(pdev->pinstance, sensor_idx, ppwr_info->pin, ppwr_info->pin_state_on);
+								mdelay(5);
+								global_i2c_mutex_unlock();
+							} else {
+								pdev->set(pdev->pinstance, sensor_idx, ppwr_info->pin, ppwr_info->pin_state_on);
+							}
+						} else {
+							pdev->set(pdev->pinstance, sensor_idx, ppwr_info->pin, ppwr_info->pin_state_on);
+						}
+					}
+					#else
+					if (pdev->set != NULL)
+						pdev->set(pdev->pinstance,
+						sensor_idx,
+						ppwr_info->pin, ppwr_info->pin_state_on);
+					#endif
+					#endif
+				#ifdef VENDOR_EDIT
+				/*Henry.Chang@Cam.Drv, 20200728, add for allplatfrom customconfig*/
+				}
+				#endif
 			}
 
 			mdelay(ppwr_info->pin_on_delay);
@@ -172,24 +229,84 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 
 			if (__ratelimit(&ratelimit))
 				PK_DBG(
-				"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d",
+				"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d, delay %u",
 				sensor_idx,
 				ppwr_info->pin,
-				ppwr_info->pin_state_off);
+				ppwr_info->pin_state_off,
+				ppwr_info->pin_on_delay);
 
 			if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
-				pdev =
-				phw->pdev[psensor_pwr->id[ppwr_info->pin]];
+				#ifdef VENDOR_EDIT
+				/*Henry.Chang@Cam.Drv, 20200728, add for allplatfrom customconfig*/
+				if (Oplusimgsensor_ldo_powerset(sensor_idx, ppwr_info->pin, pwr_status)
+						== IMGSENSOR_RETURN_ERROR) {
+				#endif
+					pdev =
+					phw->pdev[psensor_pwr->id[ppwr_info->pin]];
+				#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				#ifdef SENSOR_PLATFORM_MT6771
+				/*weiriqin@Camera.Drv, 2019/08/20, add for wait sem to pull rst*/
+                                if (pdev->set != NULL) {
+					if(is_project(19531) || is_project(19151) || is_project(19350)) {
+						if ((sensor_idx == IMGSENSOR_SENSOR_IDX_SUB) && (ppwr_info->pin == IMGSENSOR_HW_PIN_RST) && (ppwr_info->pin_state_on == Vol_Low)) {
+							global_i2c_mutex_lock();
+							mdelay(5);
+							pdev->set(pdev->pinstance, sensor_idx, ppwr_info->pin, ppwr_info->pin_state_off);
+							mdelay(5);
+							global_i2c_mutex_unlock();
+						} else {
+							pdev->set(pdev->pinstance, sensor_idx, ppwr_info->pin, ppwr_info->pin_state_off);
+						}
+					} else {
+						pdev->set(pdev->pinstance, sensor_idx, ppwr_info->pin, ppwr_info->pin_state_off);
+					}
+				}
+				#else
 
-				if (pdev->set != NULL)
-					pdev->set(pdev->pinstance,
-					sensor_idx,
-				ppwr_info->pin, ppwr_info->pin_state_off);
+					if (pdev->set != NULL)
+						pdev->set(pdev->pinstance,
+						sensor_idx,
+					ppwr_info->pin, ppwr_info->pin_state_off);
+				#endif
+				#endif
+				#ifdef VENDOR_EDIT
+				/*Henry.Chang@Cam.Drv, 20200728, add for allplatfrom customconfig*/
+				}
+				#endif
 			}
 
 			mdelay(ppwr_info->pin_on_delay);
 		}
 	}
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	#ifdef SENSOR_PLATFORM_MT6771
+	/*weiriqin@Camera.Drv, 20190820, add for pull-up gc02's avdd when main sensor is powered*/
+	if ((sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN)
+		&& (is_project(OPPO_19531) || is_project(19151) || is_project(19350))) {
+		if (pwr_status == IMGSENSOR_HW_POWER_STATUS_ON) {//power up
+			pdev = phw->pdev[IMGSENSOR_HW_ID_REGULATOR];
+			if (g_is_sub2_gc02m0 && pdev->set != NULL) {
+				PK_DBG("force sub2_gc02 avdd to high");
+				pdev->set(pdev->pinstance, IMGSENSOR_SENSOR_IDX_SUB2, IMGSENSOR_HW_PIN_AVDD, Vol_2800);
+			}
+			if (g_is_main3_gc02m0 && pdev->set != NULL) {
+				PK_DBG("force main3_gc02 avdd to high");
+				pdev->set(pdev->pinstance, IMGSENSOR_SENSOR_IDX_MAIN3, IMGSENSOR_HW_PIN_AVDD, Vol_2800);
+			}
+		} else if (pwr_status == IMGSENSOR_HW_POWER_STATUS_OFF) {//power down
+			pdev = phw->pdev[IMGSENSOR_HW_ID_REGULATOR];
+			if (g_is_sub2_gc02m0 && pdev->set != NULL) {
+				PK_DBG("force sub2_gc02 avdd to low");
+				pdev->set(pdev->pinstance, IMGSENSOR_SENSOR_IDX_SUB2, IMGSENSOR_HW_PIN_AVDD, Vol_Low);
+			}
+			if (g_is_main3_gc02m0 && pdev->set != NULL) {
+				PK_DBG("force main3_gc02 avdd to low");
+				pdev->set(pdev->pinstance, IMGSENSOR_SENSOR_IDX_MAIN3, IMGSENSOR_HW_PIN_AVDD, Vol_Low);
+			}
+		}
+	}
+	#endif
+	#endif
 
 	return IMGSENSOR_RETURN_SUCCESS;
 }
@@ -199,24 +316,56 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 		struct IMGSENSOR_SENSOR *psensor,
 		enum IMGSENSOR_HW_POWER_STATUS pwr_status)
 {
+	int ret = 0;
 	enum IMGSENSOR_SENSOR_IDX sensor_idx = psensor->inst.sensor_idx;
 	char *curr_sensor_name = psensor->inst.psensor_list->name;
 	char str_index[LENGTH_FOR_SNPRINTF];
-
-	PK_DBG("sensor_idx %d, power %d curr_sensor_name %s, enable list %s\n",
+	#ifdef VENDOR_EDIT
+	/*Henry.Chang@Camera.Drv add for hwcfg MIPISWITCH 20200728*/
+	struct IMGSENSOR_HW_POWER_SEQ *ppwr_seq = NULL;
+	#endif
+	pr_info("sensor_idx %d, power %d curr_sensor_name %s, enable list %s\n",
 		sensor_idx,
 		pwr_status,
 		curr_sensor_name,
-		phw->enable_sensor_by_index[sensor_idx] == NULL
+		phw->enable_sensor_by_index[(uint32_t)sensor_idx] == NULL
 		? "NULL"
-		: phw->enable_sensor_by_index[sensor_idx]);
+		: phw->enable_sensor_by_index[(uint32_t)sensor_idx]);
 
-	if (phw->enable_sensor_by_index[sensor_idx] &&
-	!strstr(phw->enable_sensor_by_index[sensor_idx], curr_sensor_name))
+	if (phw->enable_sensor_by_index[(uint32_t)sensor_idx] &&
+	!strstr(phw->enable_sensor_by_index[(uint32_t)sensor_idx], curr_sensor_name))
 		return IMGSENSOR_RETURN_ERROR;
 
+	ret = snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
+	if (ret < 0) {
+		pr_info("Error! snprintf allocate 0");
+		ret = IMGSENSOR_RETURN_ERROR;
+		return ret;
+	}
+	#ifdef VENDOR_EDIT
+	/*Henry.Chang@Camera.Drv add for hwcfg MIPISWITCH 20200728*/
+	Oplusimgsensor_ldoenable_power(phw, sensor_idx, pwr_status);
+	ppwr_seq = Oplusimgsensor_matchhwcfg_power(IMGSENSOR_POWER_MATCHMIPI_HWCFG_INDEX);
+	if (ppwr_seq != NULL) {
+		imgsensor_hw_power_sequence(
+			phw,
+			sensor_idx,
+			pwr_status,
+			ppwr_seq,
+			str_index);
+	}
 
-	snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
+	/*Henry.Chang@Camera.Drv add for hwcfg SENSOR 20200727*/
+	ppwr_seq = Oplusimgsensor_matchhwcfg_power(IMGSENSOR_POWER_MATCHSENSOR_HWCFG_INDEX);
+	if (ppwr_seq != NULL) {
+		imgsensor_hw_power_sequence(
+			phw,
+			sensor_idx,
+			pwr_status,
+			ppwr_seq,
+			curr_sensor_name);
+	}
+	#else
 	imgsensor_hw_power_sequence(
 			phw,
 			sensor_idx,
@@ -228,6 +377,7 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 			phw,
 			sensor_idx,
 			pwr_status, sensor_power_sequence, curr_sensor_name);
+	#endif
 
 	return IMGSENSOR_RETURN_SUCCESS;
 }
